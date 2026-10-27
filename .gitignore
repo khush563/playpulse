@@ -1,0 +1,11 @@
+node_modules/
+.pnpm-store/
+.DS_Store
+.env
+.env.*
+*.log
+coverage/
+
+# Generated presentation/video renders and local visual QA captures.
+brag-output*/
+preview*.png
