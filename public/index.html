@@ -1,0 +1,1706 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#102d29">
+  <title>PlayPulse — matchday, your way</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    :root {
+      color: var(--pp-ink);
+      background: var(--pp-canvas);
+      --ink: var(--pp-ink);
+      --muted: var(--pp-muted);
+      --forest: var(--pp-forest);
+      --lime: var(--pp-lime);
+      --line: var(--pp-line);
+      --paper: var(--pp-paper);
+    }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+    .phone { position: relative; width: min(100%, 430px); height: min(100dvh, 900px); min-height: 680px; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); box-shadow: 0 28px 90px #193d3030; }
+    .app-header { display: flex; align-items: center; justify-content: space-between; padding: 22px 22px 17px; background: var(--paper); }
+    .header-right { display: flex; align-items: center; gap: 9px; }
+    .demo-tag { border: 1px solid #dde6da; border-radius: 100px; padding: 6px 8px; color: #62806a; font-size: 9px; font-weight: 900; letter-spacing: 1px; }
+    .feed-light { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: #edf0e9; color: #9ba69d; font-size: 12px; }
+    .feed-light.online { color: #2da36b; }
+    .content { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 24px; scrollbar-width: thin; }
+    .view { padding: 0 18px; }
+    .eyebrow { display: flex; align-items: center; gap: 7px; color: #d13646; text-transform: uppercase; font-size: 10px; font-weight: 900; letter-spacing: 1.8px; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px #e735431c; animation: pulse 1.4s infinite; }
+    .page-head { padding: 8px 5px 20px; }
+    .page-head h1 { margin: 9px 0 5px; font-size: 31px; line-height: 1.02; letter-spacing: -1.7px; }
+    .page-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .match-card { position: relative; overflow: hidden; border-radius: 26px; background: radial-gradient(circle at 72% 2%, #245747 0, transparent 37%), linear-gradient(145deg, #123b31, #0d2825); color: #fff; box-shadow: 0 18px 32px #113b2e2a; }
+    .match-card::before, .match-card::after { content: ""; position: absolute; pointer-events: none; border: 1px solid #ffffff14; border-radius: 50%; }
+    .match-card::before { width: 235px; height: 235px; left: 50%; top: 70px; transform: translateX(-50%); }
+    .match-card::after { width: 100px; height: 100px; left: 50%; top: 137px; transform: translateX(-50%); }
+    .match-top, .score-area, .match-bottom { position: relative; z-index: 1; }
+    .match-top { display: flex; justify-content: space-between; align-items: center; padding: 19px 19px 0; }
+    .competition { color: #bcd7c8; font-size: 10px; font-weight: 900; letter-spacing: 1.6px; }
+    .live-pill { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border-radius: 7px; background: #f04d58; font-size: 9px; font-weight: 900; letter-spacing: .8px; }
+    .live-pill.ft { background: #66897a; }
+    .score-area { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 7px; padding: 34px 13px 20px; }
+    .side { min-width: 0; display: grid; justify-items: center; gap: 9px; border: 0; background: transparent; color: white; }
+    .side span:last-child { font-size: 12px; font-weight: 800; }
+    .badge { width: 64px; height: 69px; display: grid; place-items: center; color: white; font-size: 29px; font-weight: 950; font-style: italic; text-shadow: 0 2px 4px #0005; clip-path: polygon(50% 0, 92% 13%, 92% 72%, 50% 100%, 8% 72%, 8% 13%); border: 3px solid #ffffff25; filter: drop-shadow(0 9px 7px #0003); transition: transform .2s ease; }
+    .side:hover .badge { transform: translateY(-4px) rotate(-4deg); }
+    .badge.arsenal { background: linear-gradient(155deg, #fc5960, #b80f29); }
+    .badge.chelsea { background: linear-gradient(155deg, #5990f6, #1752b4); }
+    .score-box { text-align: center; }
+    .score { display: flex; align-items: baseline; justify-content: center; gap: 3px; font-size: 49px; line-height: 1; font-weight: 950; letter-spacing: -3px; font-variant-numeric: tabular-nums; }
+    .score b { min-width: 31px; }
+    .score i { color: #9ac7b2; font-style: normal; font-weight: 500; }
+    .score.bump { animation: score-bump .55s ease; }
+    .minute { display: inline-block; margin-top: 10px; border: 1px solid #ffffff3a; border-radius: 100px; padding: 5px 10px; color: #e5f1e8; font-size: 11px; font-weight: 850; }
+    .match-bottom { display: flex; align-items: center; gap: 8px; margin: 8px 20px 0; padding: 15px 0; border-top: 1px solid #ffffff25; font-size: 11px; color: #d7e5db; }
+    .match-bottom strong { color: var(--lime); }
+    .match-bottom span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .progress-track { height: 4px; background: #ffffff26; }
+    .progress-fill { width: 15.6%; height: 100%; background: var(--lime); transition: width .6s ease; }
+    .personal-card, .following-card, .browse-card, .alert-tease, .timeline-card, .club-card, .alert-card, .preview-notification, .detail-card { border: 1px solid var(--line); background: #fff; box-shadow: 0 8px 24px #243a2c0a; }
+    .personal-card { margin-top: 18px; border-radius: 21px; padding: 17px; }
+    .card-kicker { color: #bc3445; font-size: 10px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; }
+    .personal-card h2 { margin: 8px 0 4px; font-size: 21px; letter-spacing: -.8px; }
+    .personal-card p, .browse-card p, .following-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .quick-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 15px; }
+    .quick-choices button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; border-radius: 11px; color: white; font-size: 12px; font-weight: 850; }
+    .quick-choices button:first-child { background: #c8233b; }
+    .quick-choices button:last-child { background: #225db8; }
+    .quiet-link { display: block; width: 100%; margin-top: 10px; padding: 7px; border: 0; background: transparent; color: #597266; text-align: center; font-size: 11px; font-weight: 800; }
+    .browse-card, .following-card { display: flex; align-items: center; justify-content: space-between; gap: 11px; margin-top: 18px; padding: 14px; border-radius: 17px; }
+    .browse-card strong, .following-card strong { display: block; margin-bottom: 3px; font-size: 12px; }
+    .small-action { flex-shrink: 0; border: 0; border-radius: 9px; background: #e9f2e9; color: #1c6242; padding: 9px 10px; font-size: 10px; font-weight: 900; }
+    .following-card { border-color: #d9e7d6; background: #f7fcf5; }
+    .following-card .mini-badge { flex-shrink: 0; width: 37px; height: 37px; display: grid; place-items: center; border-radius: 11px; background: #da3446; color: white; font-weight: 950; }
+    .following-card[data-team="Chelsea"] .mini-badge { background: #2761c0; }
+    .following-copy { flex: 1; }
+    .alert-tease { display: flex; align-items: center; gap: 12px; margin-top: 12px; border-radius: 17px; padding: 13px; }
+    .alert-tease .icon { width: 35px; height: 35px; display: grid; place-items: center; flex-shrink: 0; border-radius: 11px; background: #eff3d8; font-size: 17px; }
+    .alert-tease strong { display: block; font-size: 11px; }
+    .alert-tease small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .alert-tease button { margin-left: auto; border: 0; background: transparent; color: #376f3e; font-size: 19px; }
+    .section-title { display: flex; justify-content: space-between; align-items: baseline; margin: 25px 4px 11px; }
+    .section-title h2 { margin: 0; font-size: 17px; letter-spacing: -.6px; }
+    .section-title span { color: #8b968e; font-size: 11px; }
+    .timeline-card { display: flex; gap: 12px; align-items: center; min-height: 78px; padding: 14px; border-radius: 17px; }
+    .event-symbol { flex-shrink: 0; width: 43px; height: 43px; display: grid; place-items: center; border-radius: 13px; background: #ecf2e9; font-size: 22px; }
+    .timeline-card.goal .event-symbol { background: #ffe6e9; }
+    .timeline-card.penalty .event-symbol { background: #fff3db; }
+    .timeline-card.spotlight .event-symbol { background: #fff0c8; }
+    .timeline-card.red .event-symbol { background: #ffe1e4; }
+    .timeline-card.state .event-symbol { background: #e7ece8; }
+    .event-copy strong { display: block; font-size: 12px; }
+    .event-copy small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .timeline-source { color: #7b8b81; font-size: 9px; font-weight: 850; letter-spacing: .7px; text-transform: uppercase; }
+    .timeline-list { position: relative; display: grid; gap: 9px; margin-top: 10px; padding-left: 13px; }
+    .timeline-list::before { content: ""; position: absolute; left: 4px; top: 10px; bottom: 10px; width: 2px; background: #dce5da; }
+    .timeline-event { position: relative; display: grid; grid-template-columns: 42px 1fr; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .timeline-event::before { content: ""; position: absolute; left: -13px; top: 21px; width: 8px; height: 8px; border: 2px solid var(--paper); border-radius: 50%; background: #6d8e78; }
+    .timeline-event[data-type="goal"]::before, .timeline-event[data-type="penalty_scored"]::before { background: #d63148; }
+    .timeline-event[data-status="overturned"] { opacity: .68; }
+    .timeline-event[data-status="overturned"] .timeline-event-main > strong { text-decoration: line-through; text-decoration-color: #a75058; }
+    .timeline-event-minute { color: #244c39; font-size: 13px; font-weight: 950; font-variant-numeric: tabular-nums; }
+    .timeline-event-main strong { display: block; font-size: 11px; }
+    .timeline-event-meta, .timeline-offer { display: block; margin-top: 4px; color: #7b8980; font-size: 9px; line-height: 1.4; }
+    .timeline-offer { color: #526f5e; font-weight: 750; }
+    .timeline-status { display: inline-block; margin-left: 5px; padding: 2px 5px; border-radius: 999px; background: #edf2e9; color: #607265; font-size: 7px; font-weight: 950; letter-spacing: .5px; vertical-align: 1px; }
+    .timeline-status.overturned { background: #f8e6e8; color: #a03947; }
+    .timeline-status.pending_confirmation, .timeline-status.detected { background: #fff0cc; color: #805c19; }
+    .timeline-status.ignored { background: #ecefec; color: #6b746e; }
+    .campaign-notice { margin-top: 11px; padding: 12px 13px; border: 1px solid #e4c79b; border-radius: 13px; background: #fff8e8; color: #70552c; font-size: 10px; line-height: 1.45; }
+    .campaign-notice strong { display: block; margin-bottom: 3px; color: #46351d; font-size: 11px; }
+    .connection-note { display: flex; align-items: center; gap: 7px; margin: 16px 5px 0; color: #8a968d; font-size: 10px; }
+    .connection-note i { width: 7px; height: 7px; border-radius: 50%; background: #e89a78; }
+    .connection-note i.online { background: #35ae73; }
+    .other-head { padding: 20px 5px 14px; }
+    .other-head h1 { margin: 6px 0; font-size: 30px; letter-spacing: -1.5px; }
+    .other-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .preference-form { display: grid; gap: 13px; padding-bottom: 22px; }
+    .preference-step { margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--pp-shadow-card); }
+    .preference-step legend { padding: 0 5px; color: #28483b; font-size: 11px; font-weight: 900; letter-spacing: .7px; text-transform: uppercase; }
+    .preference-step p { margin: 2px 0 13px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .choice-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .choice-card { position: relative; display: flex; align-items: center; gap: 8px; min-height: 45px; padding: 9px 10px; border: 1px solid #dce5dc; border-radius: 12px; background: #fafcf8; color: #314a3f; font-size: 10px; font-weight: 850; cursor: pointer; }
+    .choice-card:has(input:checked) { border-color: #7da54d; background: #f0f7dc; box-shadow: inset 0 0 0 1px #a6c56d; }
+    .choice-card input { width: 16px; height: 16px; margin: 0; accent-color: #4d7b42; }
+    .choice-card .badge { width: 31px; height: 34px; font-size: 14px; filter: none; }
+    .field-label { display: block; margin: 14px 0 6px; color: #50655a; font-size: 10px; font-weight: 850; }
+    .form-select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #dce5dc; border-radius: 11px; background: #fff; color: var(--ink); font: inherit; font-size: 12px; }
+    .form-error { padding: 11px 13px; border: 1px solid #f1c7cd; border-radius: 12px; background: #fff0f2; color: #9d2b3c; font-size: 11px; line-height: 1.45; }
+    .primary-action { width: 100%; min-height: 47px; border: 0; border-radius: 12px; background: var(--forest); color: white; font-size: 11px; font-weight: 950; letter-spacing: .7px; }
+    .primary-action:disabled { background: #74857c; }
+    .secondary-action { width: 100%; min-height: 42px; border: 1px solid #d9e3d8; border-radius: 11px; background: #fff; color: #345744; font-size: 11px; font-weight: 850; }
+    .lobby-loading, .lobby-empty { padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: #fff; color: var(--muted); text-align: center; font-size: 11px; line-height: 1.5; }
+    .lobby-card { overflow: hidden; border-radius: 25px; background: radial-gradient(circle at 70% 0, #2a604c, transparent 39%), linear-gradient(145deg, var(--forest), #0b2723); color: white; box-shadow: 0 18px 32px #113b2e2a; }
+    .lobby-meta { display: flex; justify-content: space-between; align-items: center; padding: 17px 18px 0; color: #c4dacd; font-size: 9px; font-weight: 900; letter-spacing: 1px; }
+    .lobby-status { padding: 6px 8px; border-radius: 999px; background: #ffffff16; color: var(--lime); }
+    .lobby-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 30px 23px 24px; }
+    .lobby-team { display: grid; justify-items: center; gap: 9px; text-align: center; font-size: 12px; font-weight: 850; }
+    .lobby-team .badge { width: 58px; height: 63px; font-size: 25px; }
+    .lobby-versus { color: #b8cfc2; font-size: 11px; font-weight: 900; }
+    .lobby-detail { margin: 0 18px; padding: 15px 0 18px; border-top: 1px solid #ffffff24; color: #d4e4da; text-align: center; font-size: 11px; line-height: 1.5; }
+    .lobby-countdown { display: block; margin-top: 5px; color: var(--lime); font-size: 22px; font-weight: 950; }
+    .preference-summary { margin: 14px 0; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: var(--pp-shadow-card); }
+    .preference-summary strong { display: block; color: #28483b; font-size: 11px; }
+    .preference-summary span { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .lobby-actions { display: grid; gap: 8px; padding-bottom: 22px; }
+    .prediction-card { margin: 14px 0; padding: 16px; border: 1px solid #dbe5d8; border-radius: 19px; background: linear-gradient(145deg, #fff, #f5f9ed); box-shadow: var(--pp-shadow-card); }
+    .prediction-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .prediction-head h2 { margin: 4px 0 0; font-size: 18px; letter-spacing: -.6px; }
+    .prediction-state { flex-shrink: 0; border-radius: 999px; padding: 6px 8px; background: #eaf3d5; color: #466825; font-size: 8px; font-weight: 950; letter-spacing: .8px; }
+    .prediction-state[data-locked="true"] { background: #eeeae6; color: #756b63; }
+    .prediction-copy, .prediction-rules { color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .prediction-copy { margin: 10px 0; }
+    .prediction-rules { margin: 11px 0 0; padding: 10px 11px; border-radius: 11px; background: #f0f4e8; }
+    .score-prediction { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10px; margin-top: 15px; }
+    .score-prediction label { color: #53685d; font-size: 9px; font-weight: 850; text-align: center; }
+    .score-prediction input { width: 100%; height: 48px; margin-top: 5px; padding: 0 6px; border: 1px solid #d4dfd2; border-radius: 11px; background: #fff; color: var(--ink); text-align: center; font: inherit; font-size: 20px; font-weight: 900; box-sizing: border-box; }
+    .score-divider { padding-bottom: 14px; color: #7b8d82; font-size: 14px; font-weight: 900; }
+    .outcome-label { display: block; margin: 15px 0 7px; color: #53685d; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .7px; }
+    .outcome-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .outcome-choice { display: grid; place-items: center; min-height: 40px; border: 1px solid #d5dfd2; border-radius: 10px; background: #fff; color: #456052; font-size: 9px; font-weight: 900; cursor: pointer; }
+    .outcome-choice:has(input:checked) { border-color: #85a34e; background: #edf6d8; color: #304d25; }
+    .outcome-choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .prediction-error, .prediction-success { margin-top: 12px; padding: 10px 11px; border-radius: 11px; font-size: 10px; line-height: 1.45; }
+    .prediction-error { border: 1px solid #efc5cb; background: #fff0f2; color: #982f3e; }
+    .prediction-success { border: 1px solid #bed9aa; background: #eef8e4; color: #315a2e; }
+    .prediction-form-actions { display: grid; gap: 7px; margin-top: 12px; }
+    .prediction-summary { margin-top: 13px; padding: 14px; border-radius: 14px; background: #142f29; color: #fff; }
+    .prediction-summary strong { display: block; font-size: 17px; }
+    .prediction-summary span { display: block; margin-top: 5px; color: #bfd2c6; font-size: 10px; line-height: 1.45; }
+    .reward-badge { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 11px; border: 1px solid #e6d18a; border-radius: 12px; background: #fff7d9; color: #74540e; }
+    .reward-badge b { display: block; font-size: 10px; }
+    .reward-badge small { display: block; margin-top: 2px; font-size: 9px; line-height: 1.35; }
+    .search-form { display: flex; gap: 8px; margin: 7px 0 9px; }
+    .search-form input { flex: 1; min-width: 0; height: 44px; padding: 0 13px; border: 1px solid #dce5dc; border-radius: 11px; background: #fff; font-size: 12px; }
+    .search-form button { border: 0; border-radius: 11px; padding: 0 13px; background: var(--forest); color: white; font-size: 11px; font-weight: 900; }
+    .search-result { min-height: 30px; margin: 0 2px 8px; color: #6e7c73; font-size: 11px; line-height: 1.4; }
+    .club-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 17px; margin-top: 10px; }
+    .club-card .badge { width: 43px; height: 47px; font-size: 20px; filter: none; flex-shrink: 0; }
+    .club-card-copy { flex: 1; }
+    .club-card-copy strong { display: block; font-size: 13px; }
+    .club-card-copy small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .club-card-actions { display: flex; flex-direction: column; gap: 5px; }
+    .club-card-actions button { border: 0; border-radius: 8px; padding: 7px 8px; font-size: 10px; font-weight: 850; }
+    .club-card-actions .follow { background: #183f34; color: #fff; }
+    .club-card-actions .explore { background: #eef2eb; color: #2d6442; }
+    .detail-card { margin-top: 13px; border-radius: 18px; padding: 15px; }
+    .detail-card h2 { margin: 6px 0; font-size: 18px; }
+    .detail-card p { margin: 0 0 13px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .detail-card button { border: 0; border-radius: 9px; background: #183f34; color: white; padding: 10px 12px; font-size: 11px; font-weight: 850; }
+    .privacy-note { margin: 15px 3px; color: #8a978d; font-size: 10px; line-height: 1.5; }
+    .alert-card { padding: 17px; border-radius: 20px; }
+    .alert-card h2 { margin: 0 0 7px; font-size: 19px; letter-spacing: -.5px; }
+    .alert-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .alert-card button { width: 100%; margin-top: 17px; padding: 13px; border: 0; border-radius: 11px; background: var(--forest); color: #fff; font-size: 12px; font-weight: 900; }
+    .alert-state { display: flex; justify-content: space-between; gap: 10px; margin: 15px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 11px; }
+    .alert-state span { color: var(--muted); }
+    .alert-state strong { color: #23824d; }
+    .preview-title { margin: 25px 4px 11px; font-size: 17px; letter-spacing: -.5px; }
+    .preview-notification { display: flex; gap: 11px; align-items: center; border-radius: 17px; padding: 14px; }
+    .preview-notification .icon { width: 37px; height: 37px; display: grid; place-items: center; border-radius: 11px; background: #e43146; color: white; font-weight: 900; }
+    .preview-notification strong { display: block; font-size: 11px; }
+    .preview-notification small { display: block; color: var(--muted); margin-top: 3px; font-size: 10px; }
+    .alert-footnote { margin: 13px 4px; color: #8a978d; font-size: 10px; line-height: 1.5; }
+    .notification-settings { display: grid; gap: 7px; padding: 14px; border: 1px solid var(--line); border-radius: 17px; background: #fff; box-shadow: var(--pp-shadow-card); }
+    .notification-toggle { display: flex; align-items: flex-start; gap: 9px; padding: 9px; border-radius: 10px; background: #f6f8f3; color: #3f584b; font-size: 9px; line-height: 1.45; }
+    .notification-toggle input { width: 17px; height: 17px; flex-shrink: 0; accent-color: #507c41; }
+    .notification-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin: 18px 2px 9px; }
+    .notification-toolbar h2 { margin: 0; font-size: 17px; }
+    .notification-toolbar button { border: 0; background: transparent; color: #326043; font-size: 9px; font-weight: 900; }
+    .notification-list { display: grid; gap: 8px; }
+    .notification-entry { width: 100%; display: grid; grid-template-columns: 9px 1fr auto; align-items: start; gap: 9px; padding: 13px; border: 1px solid #dfe6dc; border-radius: 14px; background: #fff; color: #243d31; text-align: left; box-shadow: 0 6px 18px #243a2c08; }
+    .notification-entry[data-read="true"] { background: #f8faf6; color: #617068; box-shadow: none; }
+    .notification-dot { width: 8px; height: 8px; margin-top: 3px; border-radius: 50%; background: #d73347; }
+    .notification-entry[data-read="true"] .notification-dot { background: #c5cec2; }
+    .notification-copy strong { display: block; font-size: 10px; }
+    .notification-copy span { display: block; margin-top: 4px; color: #6b7a71; font-size: 8px; line-height: 1.45; }
+    .notification-copy small { display: block; margin-top: 5px; color: #8a978f; font-size: 7px; }
+    .notification-arrow { color: #66806f; font-size: 13px; }
+    .notification-count { position: absolute; margin: -9px 0 0 12px; min-width: 16px; min-height: 16px; display: grid; place-items: center; padding: 1px; border-radius: 99px; background: #d52f43; color: #fff; font-size: 7px; }
+    .notification-empty { padding: 20px; border: 1px dashed #ccd7c8; border-radius: 14px; background: #fff; color: var(--muted); text-align: center; font-size: 10px; line-height: 1.5; }
+    .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
+    .profile-hero { padding: 20px; border-radius: 22px; background: linear-gradient(145deg, #173f32, #0b2723); color: #fff; }
+    .profile-hero span { color: #bad0c2; font-size: 9px; font-weight: 900; letter-spacing: .8px; }
+    .profile-hero strong { display: block; margin-top: 4px; color: var(--lime); font-size: 34px; letter-spacing: -1.5px; }
+    .profile-streaks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .profile-streaks div { padding: 10px; border: 1px solid #ffffff20; border-radius: 11px; background: #ffffff0b; }
+    .profile-streaks b { display: block; margin-top: 3px; font-size: 15px; }
+    .profile-section { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--pp-shadow-card); }
+    .profile-section h2 { margin: 0 0 4px; font-size: 17px; }
+    .profile-section > p { margin: 0 0 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+    .badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .engagement-badge { min-height: 82px; padding: 9px; border: 1px solid #e1e6dc; border-radius: 12px; background: #f4f5f1; color: #89948c; }
+    .engagement-badge[data-earned="true"] { border-color: #d9c268; background: #fff7d7; color: #71540f; }
+    .engagement-badge i { display: block; font-style: normal; font-size: 19px; }
+    .engagement-badge strong { display: block; margin-top: 5px; font-size: 8px; }
+    .engagement-badge small { display: block; margin-top: 3px; font-size: 7px; line-height: 1.35; }
+    .points-history { display: grid; gap: 7px; }
+    .points-entry { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #edf0e9; }
+    .points-entry:last-child { border-bottom: 0; }
+    .points-entry strong { font-size: 9px; }
+    .points-entry span { color: #4f7839; font-size: 10px; font-weight: 950; }
+    .points-entry small { display: block; margin-top: 3px; color: var(--muted); font-size: 7px; }
+    .engagement-empty { padding: 12px; border: 1px dashed #ccd7c8; border-radius: 11px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .scoring-policy { margin: 10px 0 0; padding: 10px 12px; border-radius: 11px; background: #f0f4e8; color: #5e6d64; font-size: 8px; line-height: 1.55; }
+    .group-opt { display: flex; align-items: flex-start; gap: 9px; padding: 11px; border-radius: 11px; background: #f5f7f2; color: #40584b; font-size: 9px; line-height: 1.45; }
+    .group-opt input { width: 17px; height: 17px; accent-color: #507c41; }
+    .watch-form { display: grid; gap: 8px; margin-top: 11px; }
+    .watch-form input, .watch-form select { width: 100%; min-height: 41px; box-sizing: border-box; padding: 0 10px; border: 1px solid #d6dfd3; border-radius: 9px; background: #fff; font: inherit; font-size: 10px; }
+    .watch-form button, .watch-actions button { min-height: 38px; border: 0; border-radius: 9px; padding: 0 11px; background: var(--forest); color: #fff; font-size: 9px; font-weight: 900; }
+    .watch-card { margin-top: 11px; padding: 13px; border: 1px solid #d9e2d5; border-radius: 13px; background: #f9fbf6; }
+    .watch-card strong { display: block; font-size: 11px; }
+    .watch-card p { margin: 5px 0; color: var(--muted); font-size: 8px; line-height: 1.45; }
+    .watch-code { color: #315d42; font-size: 15px; font-weight: 950; letter-spacing: 1px; }
+    .watch-progress { height: 6px; margin: 9px 0; overflow: hidden; border-radius: 999px; background: #dfe6da; }
+    .watch-progress i { display: block; height: 100%; background: #81a94e; }
+    .watch-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .watch-actions button.secondary { border: 1px solid #d6dfd3; background: #fff; color: #395746; }
+    .watch-actions button.danger { border: 1px solid #eccfd3; background: #fff; color: #963b48; }
+    .watch-status { margin-top: 9px; color: #637269; font-size: 8px; line-height: 1.45; }
+    .bottom-nav { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, 1fr); min-height: 70px; padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: #fff; }
+    .bottom-nav button { position: relative; display: grid; place-content: center; justify-items: center; gap: 4px; border: 0; background: transparent; color: #9aa69d; font-size: 10px; font-weight: 850; }
+    .bottom-nav button span { font-size: 19px; line-height: 1; }
+    .bottom-nav button.active { color: #d52f43; }
+    .modal-scrim { position: absolute; z-index: 15; inset: 0; display: grid; place-items: center; padding: 22px; background: #09231fc4; backdrop-filter: blur(6px); }
+    .suggest-card { width: 100%; border-radius: 23px; padding: 24px; background: #fff; box-shadow: 0 25px 60px #0004; }
+    .suggest-card .card-kicker { color: #d03648; }
+    .suggest-card h2 { margin: 10px 0; font-size: 29px; line-height: 1.08; letter-spacing: -1.4px; }
+    .suggest-card p { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .suggest-card button { width: 100%; border: 0; border-radius: 11px; padding: 13px; font-size: 12px; font-weight: 850; }
+    .suggest-card .confirm { background: var(--forest); color: white; }
+    .suggest-card .alternative { margin-top: 8px; background: #eef2eb; color: #23513a; }
+    .flash-overlay { position: absolute; z-index: 20; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; background: #071c17b8; backdrop-filter: blur(5px); animation: appear .2s ease; }
+    .flash-overlay[data-mood="celebrate"]::before { content: ""; position: absolute; inset: 0 0 28%; pointer-events: none; opacity: .7; background-image: radial-gradient(circle, #e9f45b 0 3px, transparent 4px), radial-gradient(circle, #ff6570 0 3px, transparent 4px), radial-gradient(circle, #fff 0 2px, transparent 3px); background-size: 67px 93px, 91px 121px, 53px 81px; animation: confetti 6s linear infinite; }
+    .flash-window { position: relative; overflow: hidden; border-radius: 29px 29px 0 0; padding: 18px 23px max(25px, env(safe-area-inset-bottom)); background: #fff; box-shadow: 0 -20px 60px #051e1744; animation: slide .25s ease-out; --deal-color: #d42c40; }
+    .flash-overlay[data-mood="comfort"] .flash-window { --deal-color: #a35c2f; background: #fffaf5; }
+    .flash-overlay[data-event="spotlight"] .flash-window { --deal-color: #ae7514; background: #fffaf0; }
+    .deal-nudge { position: absolute; z-index: 12; left: 14px; right: 14px; bottom: calc(78px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid #dce9d7; border-radius: 16px; background: #fff; box-shadow: 0 12px 36px #0a2d2450; }
+    .deal-nudge .nudge-icon { width: 38px; height: 38px; display: grid; place-items: center; flex-shrink: 0; border-radius: 11px; background: #e9f4e6; font-size: 19px; }
+    .deal-nudge .nudge-copy { flex: 1; min-width: 0; }
+    .deal-nudge strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .deal-nudge small { display: block; margin-top: 4px; color: #5d7568; font-size: 10px; }
+    .deal-nudge button { flex-shrink: 0; border: 0; border-radius: 9px; padding: 10px; background: #173f33; color: white; font-size: 10px; font-weight: 900; }
+    .flash-window::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--deal-color); }
+    .handle { width: 37px; height: 4px; margin: 1px auto 19px; border-radius: 9px; background: #dfe6dc; }
+    .flash-head { display: flex; align-items: center; justify-content: space-between; }
+    .flash-kicker { color: var(--deal-color); font-size: 10px; font-weight: 950; letter-spacing: 1.6px; }
+    .timer-ring { --arc: 360deg; width: 67px; height: 67px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--deal-color) var(--arc), #e9e5df 0); }
+    .timer-inside { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; color: var(--deal-color); font-size: 16px; font-weight: 950; font-variant-numeric: tabular-nums; }
+    .flash-window h2 { max-width: 275px; margin: 7px 0; font-size: 31px; line-height: 1.03; letter-spacing: -1.6px; }
+    .flash-window p { margin: 0; color: #728077; font-size: 12px; line-height: 1.5; }
+    .offer-row { display: flex; align-items: center; gap: 12px; margin: 21px 0 15px; padding: 11px; border: 1px solid #e7eee6; border-radius: 15px; background: #f6f8f3; }
+    .product-icon { width: 50px; height: 50px; display: grid; place-items: center; flex-shrink: 0; border-radius: 11px; background: #e9eee6; font-size: 27px; }
+    .offer-row strong { display: block; font-size: 12px; }
+    .offer-row small { display: block; margin-top: 4px; color: var(--deal-color); font-size: 10px; font-weight: 900; }
+    .deal-alternative { display: inline-flex; margin-top: 9px; padding: 4px 7px; border-radius: 999px; background: #fff0ca; color: #775316; font-size: 8px; font-weight: 900; letter-spacing: .5px; }
+    .price-row { display: flex; align-items: baseline; gap: 8px; margin: -5px 2px 12px; }
+    .price-row del { color: #8b978f; font-size: 12px; }
+    .price-row strong { color: #183d31; font-size: 24px; letter-spacing: -1px; }
+    .price-row small { color: var(--deal-color); font-size: 9px; font-weight: 900; }
+    .offer-terms { display: grid; gap: 4px; margin: 0 2px 13px; color: #66776d; font-size: 9px; line-height: 1.4; }
+    .offer-terms strong { color: #314d3e; }
+    .recommendation-reason { margin: 0 2px 13px; padding: 10px 11px; border-radius: 11px; background: #eef5e9; color: #385444; }
+    .recommendation-reason strong { display: block; color: #4f763a; font-size: 7px; letter-spacing: .65px; text-transform: uppercase; }
+    .recommendation-reason span { display: block; margin-top: 4px; font-size: 9px; line-height: 1.45; }
+    .buy-button { width: 100%; padding: 15px; border: 0; border-radius: 12px; background: var(--deal-color); color: #fff; font-size: 12px; font-weight: 950; letter-spacing: 1px; }
+    .skip-deal { display: block; margin: 6px auto 0; border: 0; background: transparent; color: #819087; padding: 9px; font-size: 11px; font-weight: 750; }
+    .deal-note { text-align: center; font-size: 10px !important; color: #9ba69e !important; }
+    .toast { position: absolute; z-index: 30; left: 50%; bottom: 82px; width: max-content; max-width: calc(100% - 32px); transform: translateX(-50%); padding: 10px 14px; border-radius: 100px; background: #173d33; color: white; box-shadow: 0 9px 20px #0003; font-size: 11px; font-weight: 750; text-align: center; }
+    @keyframes pulse { 50% { opacity: .4; } }
+    @keyframes score-bump { 40% { transform: scale(1.13); color: var(--lime); } }
+    @keyframes appear { from { opacity: 0; } }
+    @keyframes slide { from { transform: translateY(30px); opacity: .7; } }
+    @keyframes confetti { from { background-position: 0 -120px, 22px -180px, 40px -90px; } to { background-position: 0 500px, 22px 470px, 40px 520px; } }
+    @media (max-width: 430px) {
+      .phone { height: 100dvh; min-height: 100dvh; box-shadow: none; }
+      .app-header { padding-left: 16px; padding-right: 16px; }
+      .header-right { gap: 6px; }
+      .pp-context-link { padding-inline: 8px; }
+      .demo-tag { display: none; }
+      .choice-grid.three { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <header class="app-header">
+      <div class="pp-brand"><span class="pp-brand-mark" aria-hidden="true">↗</span> playpulse.</div>
+      <div class="header-right"><a class="pp-context-link" href="/admin">MERCHANT</a><span class="demo-tag">LOCAL DEMO</span><span class="feed-light" id="feed-light" aria-label="Connecting to simulated feed">●</span></div>
+    </header>
+
+    <div class="content" id="content">
+      <section class="view" id="onboarding-view" hidden>
+        <div class="other-head"><div class="card-kicker">WELCOME TO PLAYPULSE</div><h1>Set your matchday.</h1><p>Choose what matters to you. Everything stays in this browser and can be changed later.</p></div>
+        <form class="preference-form" id="preference-form" novalidate>
+          <fieldset class="preference-step">
+            <legend>1 · Your club</legend>
+            <p>Choose one team participating in this local Arsenal–Chelsea demo.</p>
+            <div class="choice-grid">
+              <label class="choice-card"><input type="radio" name="favorite-club" value="Arsenal" required><span class="badge arsenal" aria-hidden="true">A</span><span>Arsenal</span></label>
+              <label class="choice-card"><input type="radio" name="favorite-club" value="Chelsea" required><span class="badge chelsea" aria-hidden="true">C</span><span>Chelsea</span></label>
+            </div>
+            <label class="field-label" for="favorite-league">Favourite league · optional</label>
+            <select class="form-select" id="favorite-league" name="favorite-league"><option value="">No league preference</option><option value="Premier League">Premier League</option></select>
+          </fieldset>
+          <fieldset class="preference-step">
+            <legend>2 · Offer preferences</legend>
+            <p>Select one or more. This prototype currently demonstrates food and merchandise offers.</p>
+            <div class="choice-grid">
+              <label class="choice-card"><input type="checkbox" name="offer-preference" value="food"><span>🍜 Food</span></label>
+              <label class="choice-card"><input type="checkbox" name="offer-preference" value="merchandise"><span>👕 Merchandise</span></label>
+              <label class="choice-card"><input type="checkbox" name="offer-preference" value="experiences"><span>▣ Sports bars / experiences</span></label>
+              <label class="choice-card"><input type="checkbox" id="no-offer-preference" name="no-offer-preference"><span>No preference</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="preference-step">
+            <legend>3 · Match-day mode</legend>
+            <p>Choose which emotional moments you want PlayPulse to use.</p>
+            <div class="choice-grid three">
+              <label class="choice-card"><input type="radio" name="match-day-mode" value="celebration"><span>Celebration deals</span></label>
+              <label class="choice-card"><input type="radio" name="match-day-mode" value="comfort"><span>Comfort / reset</span></label>
+              <label class="choice-card"><input type="radio" name="match-day-mode" value="all" checked><span>All offers</span></label>
+            </div>
+          </fieldset>
+          <div class="form-error" id="preference-error" role="alert" hidden></div>
+          <button class="primary-action" type="submit">CONTINUE TO MATCH LOBBY</button>
+        </form>
+      </section>
+
+      <section class="view" id="lobby-view" hidden>
+        <div class="other-head"><div class="card-kicker">MATCH LOBBY</div><h1>Your match is ready.</h1><p>Review the local demo fixture, then join when you are ready.</p></div>
+        <div class="lobby-loading" id="lobby-loading" role="status">Loading the local fixture…</div>
+        <div class="lobby-empty" id="lobby-empty" hidden><strong>No demo match is available.</strong><br>Return later or edit your preferences.</div>
+        <section class="lobby-card" id="lobby-card" hidden aria-label="Match lobby fixture">
+          <div class="lobby-meta"><span id="lobby-competition">PREMIER LEAGUE · LOCAL DEMO</span><span class="lobby-status" id="lobby-status">LOADING</span></div>
+          <div class="lobby-teams"><div class="lobby-team"><span class="badge arsenal" aria-hidden="true">A</span><span id="lobby-home">Arsenal</span></div><span class="lobby-versus">VS</span><div class="lobby-team"><span class="badge chelsea" aria-hidden="true">C</span><span id="lobby-away">Chelsea</span></div></div>
+          <div class="lobby-detail"><span id="lobby-time">Kickoff time unavailable · local demo</span><strong class="lobby-countdown" id="lobby-countdown" hidden></strong></div>
+        </section>
+        <div class="preference-summary" id="preference-summary" hidden><strong id="summary-club">Following Arsenal</strong><span id="summary-details"></span></div>
+        <section class="prediction-card" id="prediction-card" aria-labelledby="prediction-heading">
+          <div class="prediction-head"><div><div class="card-kicker">FREE MATCH PICK</div><h2 id="prediction-heading">Call the final result.</h2></div><span class="prediction-state" id="prediction-window-state">SIMULATED · OPEN</span></div>
+          <p class="prediction-copy" id="prediction-window-copy">This is a manually controlled pre-match simulation because the fixture has no reliable kickoff timestamp.</p>
+          <form id="prediction-form" novalidate>
+            <div class="score-prediction">
+              <label for="prediction-home"><span id="prediction-home-label">Arsenal</span><input id="prediction-home" name="home-score" type="number" min="0" max="20" step="1" inputmode="numeric" autocomplete="off" placeholder="–"></label>
+              <span class="score-divider" aria-hidden="true">:</span>
+              <label for="prediction-away"><span id="prediction-away-label">Chelsea</span><input id="prediction-away" name="away-score" type="number" min="0" max="20" step="1" inputmode="numeric" autocomplete="off" placeholder="–"></label>
+            </div>
+            <span class="outcome-label">Or choose an outcome</span>
+            <div class="outcome-grid" role="radiogroup" aria-label="Predicted match outcome">
+              <label class="outcome-choice"><input type="radio" name="prediction-outcome" value="home"><span id="prediction-home-win">ARSENAL WIN</span></label>
+              <label class="outcome-choice"><input type="radio" name="prediction-outcome" value="draw"><span>DRAW</span></label>
+              <label class="outcome-choice"><input type="radio" name="prediction-outcome" value="away"><span id="prediction-away-win">CHELSEA WIN</span></label>
+            </div>
+            <div class="prediction-error" id="prediction-error" role="alert" tabindex="-1" hidden></div>
+            <div class="prediction-form-actions"><button class="primary-action" id="prediction-submit" type="submit">SAVE PREDICTION</button><button class="secondary-action" id="prediction-cancel" type="button" hidden>CANCEL EDIT</button></div>
+          </form>
+          <div class="prediction-summary" id="prediction-summary" hidden><strong id="prediction-pick"></strong><span id="prediction-detail"></span><button class="small-action" id="prediction-edit" type="button">EDIT PREDICTION</button></div>
+          <div class="prediction-success" id="prediction-success" role="status" aria-live="polite" hidden></div>
+          <div class="reward-badge" id="prediction-reward" hidden><span aria-hidden="true">✦</span><span><b id="reward-title">PLAYPULSE EARLY BIRD</b><small id="reward-copy">Demo badge claimed for this local user.</small></span></div>
+          <p class="prediction-rules" id="prediction-rules">One prediction and one reward claim per local browser ID for this match. Edits are allowed until the demo window locks. The first 5,000 eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Everyone can still use ordinary eligible offers if the cap is reached. No payment or cash prize.</p>
+        </section>
+        <div class="lobby-actions"><button class="primary-action" id="join-match" type="button" disabled>JOIN MATCH</button><button class="secondary-action" type="button" data-edit-preferences>EDIT PREFERENCES</button></div>
+      </section>
+
+      <section class="view" id="match-view">
+        <div class="page-head"><div class="eyebrow" id="eyebrow"><span class="live-dot"></span><span id="eyebrow-text">Matchday live</span></div><h1 id="headline">The game is on.</h1><p id="subheadline">One match. Your moments.</p></div>
+        <section class="match-card" aria-label="Simulated Premier League match">
+          <div class="match-top"><span class="competition">PREMIER LEAGUE · LIVE DEMO</span><span class="live-pill" id="live-pill">● LIVE</span></div>
+          <div class="score-area">
+            <button class="side" type="button" data-view-team="Arsenal" aria-label="Explore Arsenal"><span class="badge arsenal" aria-hidden="true">A</span><span>Arsenal</span></button>
+            <div class="score-box"><div class="score" id="score"><b id="home-score">0</b><i>:</i><b id="away-score">0</b></div><span class="minute" id="minute">14′</span></div>
+            <button class="side" type="button" data-view-team="Chelsea" aria-label="Explore Chelsea"><span class="badge chelsea" aria-hidden="true">C</span><span>Chelsea</span></button>
+          </div>
+          <div class="match-bottom"><strong id="match-bottom-icon">↗</strong><span id="match-bottom-text">A live moment could change everything.</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        </section>
+
+        <section class="personal-card" id="personal-card" aria-label="Choose a team">
+          <div class="card-kicker">MAKE MATCHDAY YOURS</div><h2>Whose side are you on?</h2><p>Follow a club for goal celebrations and comfort picks when the result stings.</p>
+          <div class="quick-choices"><button type="button" data-follow-team="Arsenal">🔴 Arsenal</button><button type="button" data-follow-team="Chelsea">🔵 Chelsea</button></div>
+          <button class="quiet-link" id="browse-first" type="button">Just browsing for now →</button>
+        </section>
+
+        <section class="browse-card" id="browse-card" hidden><div><strong>Browsing the match</strong><p>Scores and moments are yours. Follow a club when you want tailored offers.</p></div><button class="small-action" type="button" data-go="teams">FOLLOW</button></section>
+        <section class="following-card" id="following-card" hidden><span class="mini-badge" id="mini-badge">A</span><div class="following-copy"><strong id="following-title">Following Arsenal</strong><p id="following-status">Your side is level</p></div><button class="small-action" type="button" data-go="teams">CHANGE</button></section>
+        <section class="alert-tease" id="alert-tease" hidden><span class="icon" aria-hidden="true">🔔</span><div><strong>Your matchday inbox</strong><small>Review in-app match and offer updates.</small></div><button type="button" data-go="alerts" aria-label="Open in-app notification centre">→</button></section>
+
+        <div class="section-title"><h2>Match timeline</h2><span class="timeline-source" id="timeline-minute">SEEDED SIMULATION</span></div>
+        <section class="timeline-card" id="timeline-card" aria-live="polite"><span class="event-symbol" id="event-symbol" aria-hidden="true">⚽</span><div class="event-copy"><strong id="event-title">Waiting for the next moment</strong><small id="event-detail">The seeded simulator is ready</small></div></section>
+        <div class="timeline-list" id="timeline-list" aria-label="Ordered simulated match events" aria-live="polite" hidden></div>
+        <aside class="campaign-notice" id="campaign-notice" role="status" aria-live="polite" tabindex="-1" hidden><strong id="campaign-notice-title">Campaign status changed</strong><span id="campaign-notice-copy"></span></aside>
+        <div class="connection-note" id="connection-note" data-state="loading" role="status" aria-live="polite"><i id="connection-dot"></i><span id="connection-label">Connecting to local simulated feed…</span></div>
+      </section>
+
+      <section class="view" id="teams-view" hidden>
+        <div class="other-head"><div class="card-kicker">YOUR SIDE, YOUR CALL</div><h1>Find your club.</h1><p>Choose one team for this Premier League match. You can switch or just browse at any time.</p></div>
+        <form class="search-form" id="search-form"><input id="team-search" type="search" placeholder="Search Arsenal or Chelsea" autocomplete="off" aria-label="Search a team"><button type="submit">SEARCH</button></form>
+        <p class="search-result" id="search-result" aria-live="polite">Explore teams to help us suggest your side.</p>
+        <section class="club-card"><span class="badge arsenal" aria-hidden="true">A</span><div class="club-card-copy"><strong>Arsenal</strong><small>North London · Premier League</small></div><div class="club-card-actions"><button class="follow" type="button" data-follow-team="Arsenal">FOLLOW</button><button class="explore" type="button" data-explore-team="Arsenal">EXPLORE</button></div></section>
+        <section class="club-card"><span class="badge chelsea" aria-hidden="true">C</span><div class="club-card-copy"><strong>Chelsea</strong><small>West London · Premier League</small></div><div class="club-card-actions"><button class="follow" type="button" data-follow-team="Chelsea">FOLLOW</button><button class="explore" type="button" data-explore-team="Chelsea">EXPLORE</button></div></section>
+        <section class="detail-card" id="team-detail" hidden><div class="card-kicker">MATCH VIEW</div><h2 id="detail-heading">Arsenal</h2><p id="detail-copy">Keep an eye on your side.</p><button id="detail-follow" type="button">Follow this club →</button></section>
+        <button class="quiet-link" id="browse-from-teams" type="button">Continue just browsing →</button>
+        <p class="privacy-note">Team suggestions use only searches and club views inside this demo. We always ask before following a team.</p>
+        <button class="secondary-action" type="button" data-edit-preferences>Edit match preferences</button>
+        <button class="quiet-link" id="reset-demo" type="button">Restart welcome screen</button>
+      </section>
+
+      <section class="view" id="alerts-view" hidden>
+        <div class="other-head"><div class="card-kicker">IN-APP NOTIFICATION CENTRE</div><h1>Your matchday inbox.</h1><p>Confirmed local events, offers, claims, expiries, and order changes appear here. No push, browser notification, SMS, email, or external message is sent.</p></div>
+        <section class="notification-settings" aria-labelledby="notification-settings-heading"><h2 id="notification-settings-heading" class="visually-hidden">Notification preferences</h2>
+          <label class="notification-toggle"><input id="notify-events" type="checkbox"><span><strong>Match event alerts</strong><br>Confirmed simulated goals, penalties, cards, and match states.</span></label>
+          <label class="notification-toggle"><input id="notify-offers" type="checkbox"><span><strong>Offer alerts</strong><br>Eligible offer activation and expiry updates.</span></label>
+          <label class="notification-toggle"><input id="notify-quiet" type="checkbox"><span><strong>Quiet mode</strong><br>Keep entries in this inbox without interruptive status announcements.</span></label>
+        </section>
+        <div class="notification-toolbar"><h2><span id="notification-unread">0</span> unread</h2><button id="notification-read-all" type="button" disabled>MARK ALL READ</button></div>
+        <div class="notification-list" id="notification-list" aria-label="In-app notifications"><div class="notification-empty">No notifications yet. Confirmed demo match activity will appear here.</div></div>
+        <div class="form-error" id="notification-error" role="alert" hidden></div>
+        <p class="alert-footnote">Entries come only from actions and simulated events in this local app. Duplicate event delivery cannot create duplicate entries.</p>
+      </section>
+
+      <section class="view" id="profile-view" hidden>
+        <div class="other-head"><div class="card-kicker">YOUR LOCAL PROFILE</div><h1>Matchday momentum.</h1><p>Only meaningful, one-time actions earn points. This profile stays in this browser.</p></div>
+        <section class="profile-hero" aria-label="Points and streaks"><span>TOTAL PLAYPULSE POINTS</span><strong id="profile-points">0 PTS</strong><div class="profile-streaks"><div><span>PREDICTION STREAK</span><b id="prediction-streak">0 matches</b></div><div><span>MATCH STREAK</span><b id="match-streak">0 matches</b></div></div></section>
+        <section class="profile-section" aria-labelledby="badges-heading"><h2 id="badges-heading">Badges</h2><p>Earned from saved local records. No sample participants or leaderboard.</p><div class="badge-grid">
+          <article class="engagement-badge" id="badge-early" data-earned="false"><i>✦</i><strong>EARLY BIRD</strong><small id="badge-early-copy">Save an eligible early prediction</small></article>
+          <article class="engagement-badge" id="badge-prediction" data-earned="false"><i>◎</i><strong>PREDICTION STREAK</strong><small id="badge-prediction-copy">0/3 consecutive matches</small></article>
+          <article class="engagement-badge" id="badge-regular" data-earned="false"><i>◉</i><strong>MATCH REGULAR</strong><small id="badge-regular-copy">0/3 consecutive joins</small></article>
+        </div></section>
+        <section class="profile-section" aria-labelledby="history-heading"><h2 id="history-heading">Points history</h2><p>Duplicate actions never award points twice.</p><div class="points-history" id="points-history"><div class="engagement-empty">No points yet. Save a free prediction or join the demo match.</div></div><div class="scoring-policy"><strong>Deterministic scoring:</strong> prediction submitted +10 · match joined +5 · correct final outcome +10 · exact final score +25 instead of the outcome award. One award of each type per match. No purchases, clicks, paid entry, wagering, or cash prizes.</div></section>
+        <section class="profile-section" aria-labelledby="watch-heading"><h2 id="watch-heading">Local watch party</h2><p>Create or join a small group with a local code. PlayPulse never sends invitations or messages automatically.</p>
+          <label class="group-opt"><input id="group-opt-in" type="checkbox"><span><strong>Enable watch-party features on this device</strong><br>Turn this off any time to leave your active local group. Group notifications remain off unless selected separately.</span></label>
+          <div id="watch-features" hidden>
+            <article class="watch-card" id="watch-invite" hidden><strong>You have a local invitation</strong><p id="watch-invite-copy"></p><div class="watch-actions"><button id="watch-join" type="button">JOIN LOCAL GROUP</button></div></article>
+            <form class="watch-form" id="watch-create-form" novalidate>
+              <input id="watch-name" maxlength="40" placeholder="Group name, e.g. North London crew" aria-label="Watch party name" required>
+              <select id="watch-team" aria-label="Watch party team"><option value="Arsenal">Arsenal</option><option value="Chelsea">Chelsea</option></select>
+              <label class="group-opt"><input id="watch-notifications" type="checkbox"><span>Opt into group status notifications in this page. No phone push or external messages are sent.</span></label>
+              <button type="submit">CREATE LOCAL WATCH PARTY</button>
+            </form>
+            <article class="watch-card" id="watch-active" hidden><strong id="watch-active-name">Local watch party</strong><span class="watch-code" id="watch-active-code"></span><p id="watch-members"></p><div class="watch-progress" aria-hidden="true"><i id="watch-progress-fill" style="width:0%"></i></div><p id="watch-reward"></p><input id="watch-invite-link" readonly aria-label="Local invite link"><div class="watch-actions"><button id="watch-copy" type="button">COPY LOCAL INVITE</button><button class="danger" id="watch-leave" type="button">LEAVE GROUP</button></div></article>
+            <div class="watch-status" id="watch-status" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <nav class="bottom-nav" id="bottom-nav" aria-label="App navigation">
+      <button type="button" class="active" data-go="match" aria-current="page"><span aria-hidden="true">◉</span> MATCH</button>
+      <button type="button" data-go="teams"><span aria-hidden="true">⬡</span> CLUBS</button>
+      <button type="button" data-go="alerts"><span aria-hidden="true">♧</span><b class="notification-count" id="notification-count" hidden>0</b> INBOX</button>
+      <button type="button" data-go="profile"><span aria-hidden="true">✦</span> PROFILE</button>
+    </nav>
+
+    <aside class="deal-nudge" id="deal-nudge" hidden aria-live="polite"><span class="nudge-icon" id="nudge-icon" aria-hidden="true">⚽</span><span class="nudge-copy"><strong id="nudge-title">Your matchday offer is ready</strong><small><span id="nudge-count">5:00</span> left to open · watch the match first</small></span><button type="button" id="nudge-open">VIEW DEAL</button></aside>
+
+    <div class="modal-scrim" id="suggest-overlay" hidden>
+      <section class="suggest-card" role="dialog" aria-modal="true" aria-labelledby="suggest-heading"><div class="card-kicker">A LITTLE HUNCH</div><h2 id="suggest-heading">Looks like you follow Arsenal. Is that right?</h2><p>Based on the clubs you explored here. Your answer decides which deals appear for you.</p><button class="confirm" id="suggest-confirm" type="button">YES, ARSENAL</button><button class="alternative" id="suggest-other" type="button">NOT MY TEAM</button></section>
+    </div>
+
+    <div class="flash-overlay" id="flash-overlay" hidden>
+      <section class="flash-window" role="dialog" aria-modal="true" aria-labelledby="deal-title" aria-describedby="deal-description"><div class="handle" aria-hidden="true"></div><div class="flash-head"><span class="flash-kicker" id="deal-label">⚡ FLASH MOMENT</span><div class="timer-ring" id="timer-ring" aria-label="Time remaining"><div class="timer-inside"><span id="timer-count">5:00</span></div></div></div><span class="deal-alternative" id="deal-alternative" hidden>ELIGIBLE ALTERNATIVE</span><h2 id="deal-title"></h2><p id="deal-description"></p><div class="offer-row"><span class="product-icon" id="product-icon" aria-hidden="true">👕</span><div><strong id="product-name"></strong><small id="product-label"></small></div></div><div class="price-row"><del id="original-price"></del><strong id="final-price"></strong><small id="discount-calculation"></small></div><div class="recommendation-reason"><strong id="recommendation-label">PERSONALISED RECOMMENDATIONS · RULE-BASED</strong><span><b>Why this offer?</b> <span id="why-offer"></span></span></div><div class="offer-terms"><span id="minimum-basket"></span><span id="inventory-remaining" hidden></span><span><strong>Fulfilment after claim:</strong> <span id="fulfilment-detail"></span></span><span id="funding-detail"></span></div><button class="buy-button" id="buy-button" type="button">BUY NOW →</button><button class="skip-deal" id="skip-deal" type="button">Skip this moment</button><p class="deal-note">Claim countdown and fulfilment time are separate · seeded demo vendors only.</p></section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <div class="visually-hidden" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/preferences.js"></script>
+  <script src="/predictions.js"></script>
+  <script src="/engagement.js"></script>
+  <script src="/notifications.js"></script>
+  <script src="/offer-ranking.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const teams = ['Arsenal', 'Chelsea'];
+    const Preferences = window.PlayPulsePreferences;
+    const PredictionRules = window.PlayPulsePredictions;
+    const Engagement = window.PlayPulseEngagement;
+    const NotificationCenter = window.PlayPulseNotifications;
+    const OfferRanking = window.PlayPulseOfferRanking;
+    const socket = io();
+    let mode = 'new';
+    let selectedTeam = null;
+    let currentMatch = null;
+    let activeDeal = null;
+    let countdown = null;
+    let lobbyCountdown = null;
+    let currentView = null;
+    let preferenceProfile = null;
+    let predictionEditing = false;
+    let predictionFeedback = '';
+    let suggestedTeam = null;
+    let suggestionDismissed = stored('touchline-suggestion-dismissed') === 'true';
+    let interest = { Arsenal: 0, Chelsea: 0 };
+    let toastTimer = null;
+    const claimedCampaigns = new Map();
+    const completedDeals = new Set();
+    const recordedImpressions = new Set();
+    const campaignKey = campaign => `${campaign?.campaign_id || campaign?.deal_id}:${campaign?.issued_at || 'legacy'}`;
+    const OFFER_INTERACTIONS_KEY = 'playpulse-offer-interactions-v1';
+    const GROUP_ENABLED_KEY = 'playpulse-group-enabled-v1';
+    const GROUP_CODE_KEY = 'playpulse-group-code-v1';
+    let offerInteractions = loadOfferInteractions();
+    let watchParty = null;
+    const invitedGroupCode = new URL(window.location.href).searchParams.get('group');
+
+    function stored(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
+    function save(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Optional browser storage. */ } }
+    function remove(key) { try { localStorage.removeItem(key); } catch (_) { /* Optional browser storage. */ } }
+    function loadOfferInteractions() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(OFFER_INTERACTIONS_KEY) || '{}');
+        return {
+          categoryViews: parsed.categoryViews && typeof parsed.categoryViews === 'object' ? parsed.categoryViews : {},
+          categoryClaims: parsed.categoryClaims && typeof parsed.categoryClaims === 'object' ? parsed.categoryClaims : {}
+        };
+      } catch (_) { return { categoryViews: {}, categoryClaims: {} }; }
+    }
+    function recordOfferInteraction(category, type) {
+      if (!Preferences.OFFER_TYPES.includes(category) || !['view', 'claim'].includes(type)) return;
+      const bucket = type === 'view' ? offerInteractions.categoryViews : offerInteractions.categoryClaims;
+      bucket[category] = (Number.isSafeInteger(bucket[category]) ? bucket[category] : 0) + 1;
+      save(OFFER_INTERACTIONS_KEY, JSON.stringify(offerInteractions));
+    }
+
+    const savedTeam = stored('touchline-team');
+    const savedPreferenceState = Preferences.loadPreferences(localStorage);
+    if (savedPreferenceState.status === 'valid') {
+      preferenceProfile = savedPreferenceState.value;
+      selectedTeam = preferenceProfile.favoriteClub;
+      mode = 'follow';
+    }
+    try {
+      const savedInterest = JSON.parse(stored('touchline-interest') || '{}');
+      for (const team of teams) if (Number.isSafeInteger(savedInterest[team]) && savedInterest[team] >= 0) interest[team] = savedInterest[team];
+    } catch (_) { /* New guest session if storage is unavailable. */ }
+    function toast(message) {
+      $('toast').textContent = message;
+      $('toast').hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2600);
+    }
+
+    function pushInAppNotification(input) {
+      const result = NotificationCenter.addNotification(localStorage, input);
+      if (!result.ok) {
+        $('notification-error').textContent = result.errors.join(' ');
+        $('notification-error').hidden = false;
+        return result;
+      }
+      if (result.added && result.announce) {
+        $('notification-announcer').textContent = `${result.entry.title}. ${result.entry.body}`;
+      }
+      renderNotificationCenter();
+      return result;
+    }
+
+    function renderNotificationCenter() {
+      const state = NotificationCenter.getState(localStorage);
+      $('notify-events').checked = state.preferences.eventAlerts;
+      $('notify-offers').checked = state.preferences.offerAlerts;
+      $('notify-quiet').checked = state.preferences.quietMode;
+      $('notification-unread').textContent = state.unreadCount;
+      $('notification-count').textContent = state.unreadCount > 99 ? '99+' : state.unreadCount;
+      $('notification-count').hidden = state.unreadCount === 0;
+      $('notification-read-all').disabled = state.unreadCount === 0;
+      const list = $('notification-list'); list.replaceChildren();
+      if (!state.ok) {
+        $('notification-error').textContent = state.errors.join(' '); $('notification-error').hidden = false;
+      }
+      if (!state.entries.length) {
+        const empty = document.createElement('div'); empty.className = 'notification-empty'; empty.textContent = 'No notifications yet. Confirmed demo match activity will appear here.'; list.append(empty); return;
+      }
+      for (const entry of state.entries) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'notification-entry'; button.dataset.read = String(entry.read);
+        const dot = document.createElement('span'); dot.className = 'notification-dot'; dot.setAttribute('aria-hidden', 'true');
+        const copy = document.createElement('span'); copy.className = 'notification-copy';
+        const title = document.createElement('strong'); title.textContent = entry.title;
+        const body = document.createElement('span'); body.textContent = entry.body;
+        const time = document.createElement('small'); time.textContent = new Date(entry.createdAt).toLocaleString();
+        copy.append(title, body, time);
+        const arrow = document.createElement('span'); arrow.className = 'notification-arrow'; arrow.textContent = '→'; arrow.setAttribute('aria-hidden', 'true');
+        button.append(dot, copy, arrow);
+        button.addEventListener('click', () => openNotification(entry));
+        list.append(button);
+      }
+    }
+
+    function openNotification(entry) {
+      NotificationCenter.markRead(localStorage, entry.id);
+      renderNotificationCenter();
+      if (entry.target === 'profile') { setView('profile'); return; }
+      setView('match');
+      if (entry.target === 'offer' && activeDeal && Date.now() < activeDeal.expires_at) openDeal();
+      else if (entry.target === 'order') $('campaign-notice').focus?.();
+    }
+
+    function engagementMatchRecord(prediction) {
+      return {
+        matchId: predictionConfig().match_id,
+        matchOrdinal: 1,
+        homeScore: prediction?.homeScore ?? null,
+        awayScore: prediction?.awayScore ?? null,
+        outcome: prediction?.outcome || ''
+      };
+    }
+
+    function syncEngagementPrediction() {
+      if (!currentMatch) return;
+      const predictionState = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      if (!predictionState.ok) return;
+      if (predictionState.prediction) Engagement.recordPrediction(localStorage, engagementMatchRecord(predictionState.prediction));
+      if (predictionState.claim) Engagement.syncEarlyBirdBadge(localStorage, { granted: true, matchId: predictionState.config.match_id });
+      if (currentMatch.status === 'FT' && predictionState.prediction) {
+        const [actualHome, actualAway] = currentMatch.score.split('-').map(Number);
+        Engagement.settlePrediction(localStorage, { matchId: predictionState.config.match_id, actualHome, actualAway });
+      }
+    }
+
+    function renderProfile() {
+      syncEngagementPrediction();
+      const profile = Engagement.getProfile(localStorage);
+      $('profile-points').textContent = `${profile.points} PTS`;
+      $('prediction-streak').textContent = `${profile.predictionStreak} match${profile.predictionStreak === 1 ? '' : 'es'}`;
+      $('match-streak').textContent = `${profile.matchStreak} match${profile.matchStreak === 1 ? '' : 'es'}`;
+      $('badge-early').dataset.earned = String(profile.badges.earlyBird);
+      $('badge-prediction').dataset.earned = String(profile.badges.predictionStreak);
+      $('badge-regular').dataset.earned = String(profile.badges.matchRegular);
+      $('badge-early-copy').textContent = profile.badges.earlyBird ? 'Earned from your eligible saved prediction' : 'Save an eligible early prediction';
+      $('badge-prediction-copy').textContent = profile.badges.predictionStreak ? 'Earned across 3 consecutive predictions' : `${Math.min(profile.predictionStreak, 3)}/3 consecutive matches`;
+      $('badge-regular-copy').textContent = profile.badges.matchRegular ? 'Earned across 3 consecutive match joins' : `${Math.min(profile.matchStreak, 3)}/3 consecutive joins`;
+      const history = $('points-history'); history.replaceChildren();
+      if (!profile.history.length) {
+        const empty = document.createElement('div'); empty.className = 'engagement-empty'; empty.textContent = 'No points yet. Save a free prediction or join the demo match.'; history.append(empty);
+      } else {
+        for (const entry of profile.history) {
+          const row = document.createElement('article'); row.className = 'points-entry';
+          const copy = document.createElement('div'); const title = document.createElement('strong'); title.textContent = entry.label;
+          const time = document.createElement('small'); time.textContent = `${new Date(entry.awardedAt).toLocaleString()} · one-time local award`; copy.append(title, time);
+          const points = document.createElement('span'); points.textContent = `+${entry.points}`; row.append(copy, points); history.append(row);
+        }
+      }
+      const enabled = stored(GROUP_ENABLED_KEY) === 'true';
+      $('group-opt-in').checked = enabled;
+      $('watch-features').hidden = !enabled;
+      if (enabled) loadWatchParty(stored(GROUP_CODE_KEY) || invitedGroupCode);
+    }
+
+    async function loadWatchParty(code) {
+      $('watch-invite').hidden = true;
+      $('watch-active').hidden = true;
+      $('watch-create-form').hidden = false;
+      watchParty = null;
+      if (!code) { $('watch-status').textContent = 'No active local group. Create one above or open a local invite link.'; return; }
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!user.ok) { $('watch-status').textContent = user.errors.join(' '); return; }
+      try {
+        const response = await fetch(`/api/watch-parties/${encodeURIComponent(code)}?user_id=${encodeURIComponent(user.value)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Local group could not be loaded.');
+        watchParty = data.group;
+        if (watchParty.current_user_joined) {
+          save(GROUP_CODE_KEY, watchParty.code);
+          renderActiveWatchParty(watchParty);
+        } else {
+          $('watch-invite-copy').textContent = `${watchParty.name} · ${watchParty.team} · ${watchParty.member_count} actual local member${watchParty.member_count === 1 ? '' : 's'}.`;
+          $('watch-join').dataset.code = watchParty.code;
+          $('watch-invite').hidden = false;
+          $('watch-status').textContent = 'Joining is optional. No message or notification will be sent automatically.';
+        }
+      } catch (error) {
+        if (stored(GROUP_CODE_KEY) === code) remove(GROUP_CODE_KEY);
+        $('watch-status').textContent = error.message;
+      }
+    }
+
+    function renderActiveWatchParty(group) {
+      $('watch-create-form').hidden = true;
+      $('watch-invite').hidden = true;
+      $('watch-active').hidden = false;
+      $('watch-active-name').textContent = group.name;
+      $('watch-active-code').textContent = group.code;
+      $('watch-members').textContent = `${group.member_count} actual local member${group.member_count === 1 ? '' : 's'} · limit ${group.member_limit}`;
+      $('watch-progress-fill').style.width = `${Math.min(100, group.reward.progress / group.reward.target * 100)}%`;
+      $('watch-reward').textContent = `Group reward progress ${group.reward.progress}/${group.reward.target}. ${group.reward.reason}${group.reward.offer_title ? ` Eligible local campaign: ${group.reward.offer_title}.` : ''}`;
+      $('watch-invite-link').value = `${window.location.origin}${group.invite_path}`;
+      $('watch-status').textContent = group.notifications_enabled
+        ? 'In-page group status notifications are enabled for this local member.'
+        : 'Group notifications are off for this local member.';
+    }
+
+    function setView(view) {
+      const validViews = ['onboarding', 'lobby', 'match', 'teams', 'alerts', 'profile'];
+      if (!validViews.includes(view)) return;
+      currentView = view;
+      for (const name of validViews) $(name + '-view').hidden = name !== view;
+      $('bottom-nav').hidden = view === 'onboarding' || view === 'lobby';
+      document.querySelectorAll('[data-go]').forEach(button => {
+        const active = button.closest('.bottom-nav') && button.dataset.go === view;
+        button.classList.toggle('active', Boolean(active));
+        if (button.closest('.bottom-nav')) {
+          if (active) button.setAttribute('aria-current', 'page');
+          else button.removeAttribute('aria-current');
+        }
+      });
+      $('content').scrollTop = 0;
+      if (view === 'alerts') renderNotificationCenter();
+      if (view === 'profile') renderProfile();
+      if (view === 'lobby') renderLobby();
+    }
+
+    function setPreferenceError(messages) {
+      const error = $('preference-error');
+      const list = Array.isArray(messages) ? messages : [messages];
+      error.textContent = list.filter(Boolean).join(' ');
+      error.hidden = !error.textContent;
+    }
+
+    function populatePreferenceForm(profile = preferenceProfile) {
+      const club = profile && teams.includes(profile.favoriteClub)
+        ? profile.favoriteClub
+        : (teams.includes(savedTeam) ? savedTeam : '');
+      document.querySelectorAll('input[name="favorite-club"]').forEach(input => { input.checked = input.value === club; });
+      $('favorite-league').value = profile && Preferences.LEAGUES.includes(profile.favoriteLeague) ? profile.favoriteLeague : '';
+      const offers = profile ? profile.offerPreferences : [];
+      document.querySelectorAll('input[name="offer-preference"]').forEach(input => { input.checked = offers.includes(input.value); });
+      $('no-offer-preference').checked = profile ? profile.noOfferPreference : false;
+      const matchDayMode = profile && Preferences.MATCH_MODES.includes(profile.matchDayMode) ? profile.matchDayMode : 'all';
+      document.querySelectorAll('input[name="match-day-mode"]').forEach(input => { input.checked = input.value === matchDayMode; });
+      setPreferenceError([]);
+    }
+
+    function readPreferenceForm() {
+      const club = document.querySelector('input[name="favorite-club"]:checked');
+      const matchDayMode = document.querySelector('input[name="match-day-mode"]:checked');
+      return {
+        favoriteClub: club ? club.value : '',
+        favoriteLeague: $('favorite-league').value,
+        offerPreferences: [...document.querySelectorAll('input[name="offer-preference"]:checked')].map(input => input.value),
+        noOfferPreference: $('no-offer-preference').checked,
+        matchDayMode: matchDayMode ? matchDayMode.value : ''
+      };
+    }
+
+    function openPreferenceEditor() {
+      populatePreferenceForm();
+      setView('onboarding');
+      document.querySelector('input[name="favorite-club"]')?.focus();
+    }
+
+    function offerLabel(value) {
+      return { food: 'food', merchandise: 'merchandise', experiences: 'sports bars / experiences' }[value] || value;
+    }
+
+    function modeLabel(value) {
+      return { celebration: 'celebration deals', comfort: 'comfort / reset deals', all: 'all offers' }[value] || value;
+    }
+
+    function renderLobbyCountdown(kickoffTime) {
+      const countdownNode = $('lobby-countdown');
+      const remaining = kickoffTime - Date.now();
+      if (remaining <= 0) {
+        countdownNode.hidden = true;
+        clearInterval(lobbyCountdown);
+        lobbyCountdown = null;
+        return;
+      }
+      const totalSeconds = Math.floor(remaining / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      countdownNode.textContent = days
+        ? `${days}d ${hours}h ${minutes}m`
+        : `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      countdownNode.hidden = false;
+    }
+
+    function renderLobby() {
+      clearInterval(lobbyCountdown);
+      lobbyCountdown = null;
+      $('lobby-countdown').hidden = true;
+      const hasFixture = currentMatch
+        && teams.includes(currentMatch.home_team)
+        && teams.includes(currentMatch.away_team)
+        && currentMatch.home_team !== currentMatch.away_team;
+
+      $('lobby-loading').hidden = Boolean(currentMatch);
+      $('lobby-empty').hidden = !currentMatch || hasFixture;
+      $('lobby-card').hidden = !hasFixture;
+      $('prediction-card').hidden = !hasFixture;
+      $('join-match').disabled = !hasFixture;
+      $('preference-summary').hidden = !preferenceProfile;
+
+      if (preferenceProfile) {
+        $('summary-club').textContent = 'Following ' + preferenceProfile.favoriteClub;
+        const league = preferenceProfile.favoriteLeague || 'no league preference';
+        const offers = preferenceProfile.noOfferPreference
+          ? 'any offer category'
+          : preferenceProfile.offerPreferences.map(offerLabel).join(', ');
+        $('summary-details').textContent = `${league} · ${offers} · ${modeLabel(preferenceProfile.matchDayMode)}`;
+      }
+      if (!hasFixture) return;
+
+      renderPrediction();
+
+      $('lobby-home').textContent = currentMatch.home_team;
+      $('lobby-away').textContent = currentMatch.away_team;
+      $('lobby-competition').textContent = `${currentMatch.competition || 'Premier League'} · LOCAL DEMO`.toUpperCase();
+
+      if (currentMatch.status === 'FT') {
+        $('lobby-status').textContent = 'FULL TIME';
+        $('lobby-time').textContent = `Final score ${currentMatch.score} · local demo`;
+        return;
+      }
+      if (currentMatch.status === 'HT') {
+        $('lobby-status').textContent = 'HALF-TIME DEMO';
+        $('lobby-time').textContent = `Half-time score ${currentMatch.score} · seeded simulation`;
+        return;
+      }
+      if (currentMatch.status === 'POSTPONED' || currentMatch.status === 'SUSPENDED') {
+        $('lobby-status').textContent = currentMatch.status;
+        $('lobby-time').textContent = `Match ${currentMatch.status.toLowerCase()} · seeded simulation`;
+        return;
+      }
+      if (currentMatch.status === 'LIVE') {
+        $('lobby-status').textContent = 'LIVE DEMO';
+        $('lobby-time').textContent = `${currentMatch.minutes}′ played · seeded simulation`;
+        return;
+      }
+
+      const kickoffTime = Date.parse(currentMatch.kickoff_at || '');
+      $('lobby-status').textContent = 'UPCOMING DEMO';
+      if (!Number.isFinite(kickoffTime)) {
+        $('lobby-time').textContent = 'Kickoff time unavailable · local demo';
+        return;
+      }
+      $('lobby-time').textContent = `${new Date(kickoffTime).toLocaleString()} · demo kickoff`;
+      renderLobbyCountdown(kickoffTime);
+      if (!$('lobby-countdown').hidden) {
+        lobbyCountdown = setInterval(() => renderLobbyCountdown(kickoffTime), 1000);
+      }
+    }
+
+    function predictionConfig() {
+      return currentMatch && currentMatch.prediction ? currentMatch.prediction : PredictionRules.DEFAULT_CONFIG;
+    }
+
+    function setPredictionError(messages) {
+      const error = $('prediction-error');
+      const list = Array.isArray(messages) ? messages : [messages];
+      error.textContent = list.filter(Boolean).join(' ');
+      error.hidden = !error.textContent;
+    }
+
+    function readPredictionForm() {
+      const outcome = document.querySelector('input[name="prediction-outcome"]:checked');
+      return {
+        homeScore: $('prediction-home').value,
+        awayScore: $('prediction-away').value,
+        outcome: outcome ? outcome.value : ''
+      };
+    }
+
+    function populatePredictionForm(prediction) {
+      $('prediction-home').value = prediction && prediction.homeScore !== null ? prediction.homeScore : '';
+      $('prediction-away').value = prediction && prediction.awayScore !== null ? prediction.awayScore : '';
+      document.querySelectorAll('input[name="prediction-outcome"]').forEach(input => {
+        input.checked = Boolean(prediction && input.value === prediction.outcome);
+      });
+      setPredictionError([]);
+    }
+
+    function outcomeText(outcome) {
+      return outcome === 'home' ? `${currentMatch.home_team} win` : outcome === 'away' ? `${currentMatch.away_team} win` : 'Draw';
+    }
+
+    function renderPrediction() {
+      if (!currentMatch) return;
+      const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      const config = state.config;
+      $('prediction-home-label').textContent = currentMatch.home_team;
+      $('prediction-away-label').textContent = currentMatch.away_team;
+      $('prediction-home-win').textContent = `${currentMatch.home_team.toUpperCase()} WIN`;
+      $('prediction-away-win').textContent = `${currentMatch.away_team.toUpperCase()} WIN`;
+      $('prediction-window-state').textContent = `SIMULATED · ${state.locked ? 'LOCKED' : 'OPEN'}`;
+      $('prediction-window-state').dataset.locked = String(state.locked);
+      $('prediction-window-copy').textContent = config.lock_at
+        ? `This simulated prediction window locks ${new Date(config.lock_at).toLocaleString()}.`
+        : `No reliable kickoff timestamp exists. The admin controls this simulated pre-match window manually; it is currently ${state.locked ? 'locked' : 'open'}.`;
+      $('prediction-rules').textContent = `One prediction and one reward claim per local browser ID for this match. Edits are allowed until the demo window locks. The first ${config.reward_cap.toLocaleString()} eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Everyone can still use ordinary eligible offers if the cap is reached. No payment, wagering, or cash prize.`;
+
+      if (!state.ok) {
+        $('prediction-form').hidden = false;
+        $('prediction-summary').hidden = true;
+        $('prediction-reward').hidden = true;
+        document.querySelectorAll('#prediction-form input, #prediction-form button').forEach(control => { control.disabled = true; });
+        setPredictionError(state.errors);
+        return;
+      }
+
+      const prediction = state.prediction;
+      if (state.locked && predictionEditing) predictionEditing = false;
+      const showingForm = !state.locked && (!prediction || predictionEditing);
+      $('prediction-form').hidden = !showingForm;
+      $('prediction-summary').hidden = !prediction || predictionEditing;
+      $('prediction-cancel').hidden = !predictionEditing;
+      $('prediction-submit').textContent = predictionEditing ? 'UPDATE PREDICTION' : 'SAVE PREDICTION';
+      $('prediction-edit').hidden = state.locked;
+      document.querySelectorAll('#prediction-form input, #prediction-form button').forEach(control => { control.disabled = state.locked; });
+
+      if (prediction) {
+        const score = prediction.homeScore === null ? outcomeText(prediction.outcome) : `${currentMatch.home_team} ${prediction.homeScore}–${prediction.awayScore} ${currentMatch.away_team}`;
+        $('prediction-pick').textContent = score;
+        $('prediction-detail').textContent = `${outcomeText(prediction.outcome)} · one saved prediction for this local browser ID${state.locked ? ' · locked' : ' · editable while open'}`;
+        $('prediction-reward').hidden = !state.claim;
+        if (state.claim) {
+          $('reward-title').textContent = state.claim.label.toUpperCase();
+          $('reward-copy').textContent = 'Demo badge claimed once for this local user and match.';
+        }
+        if (prediction.rewardStatus === 'cap_reached') {
+          predictionFeedback = 'Prediction saved. The simulated Early Bird cap has been reached, but ordinary eligible offers remain available.';
+        } else if (prediction.rewardStatus === 'unavailable' || prediction.rewardStatus === 'pending') {
+          predictionFeedback = 'Prediction saved. The Early Bird check is unavailable, but match offers remain accessible.';
+        }
+      } else {
+        $('prediction-reward').hidden = true;
+        if (!showingForm && state.locked) predictionFeedback = 'The simulated prediction window is locked. Match offers remain available.';
+        else if (predictionFeedback === 'The simulated prediction window is locked. Match offers remain available.') predictionFeedback = '';
+      }
+
+      $('prediction-success').textContent = predictionFeedback;
+      $('prediction-success').hidden = !predictionFeedback;
+      setPredictionError([]);
+    }
+
+    function updateFanStatus() {
+      if (!selectedTeam || !currentMatch) return;
+      const scores = currentMatch.score.split('-').map(Number);
+      const ours = selectedTeam === 'Arsenal' ? scores[0] : scores[1];
+      const theirs = selectedTeam === 'Arsenal' ? scores[1] : scores[0];
+      const result = ours > theirs ? 'ahead' : ours < theirs ? 'behind' : 'level';
+      $('following-status').textContent = currentMatch.status === 'FT'
+        ? (result === 'ahead' ? 'Your side won' : result === 'behind' ? 'Your side lost' : 'It ended level')
+        : (result === 'ahead' ? 'Your side is leading' : result === 'behind' ? 'Your side is trailing' : 'Your side is level');
+    }
+
+    function renderFan() {
+      $('personal-card').hidden = mode !== 'new';
+      $('browse-card').hidden = mode !== 'browse';
+      $('following-card').hidden = !selectedTeam;
+      $('alert-tease').hidden = !selectedTeam;
+      $('headline').textContent = selectedTeam ? selectedTeam + ' matchday.' : (currentMatch && currentMatch.status === 'FT' ? 'The final whistle.' : 'The game is on.');
+      $('subheadline').textContent = selectedTeam ? 'Your club. Your moments. Your call.' : 'One match. Your moments.';
+      if (selectedTeam) {
+        $('following-card').dataset.team = selectedTeam;
+        $('following-title').textContent = 'Following ' + selectedTeam;
+        $('mini-badge').textContent = selectedTeam[0];
+      }
+      document.querySelectorAll('[data-follow-team]').forEach(button => {
+        const isFollowing = button.dataset.followTeam === selectedTeam;
+        if (button.classList.contains('follow')) button.textContent = isFollowing ? 'FOLLOWING' : 'FOLLOW';
+      });
+      updateFanStatus();
+      renderNotificationCenter();
+    }
+
+    function hideDeal(markCompleted) {
+      if (markCompleted && activeDeal) completedDeals.add(campaignKey(activeDeal));
+      clearInterval(countdown);
+      countdown = null;
+      activeDeal = null;
+      $('flash-overlay').hidden = true;
+      $('deal-nudge').hidden = true;
+      $('buy-button').disabled = true;
+    }
+
+    function followTeam(team) {
+      if (!teams.includes(team)) return;
+      hideDeal(false);
+      selectedTeam = team;
+      mode = 'follow';
+      if (preferenceProfile) {
+        const saved = Preferences.savePreferences(localStorage, { ...preferenceProfile, favoriteClub: team });
+        if (saved.ok) preferenceProfile = saved.value;
+        else toast(saved.errors.join(' '));
+      }
+      suggestedTeam = null;
+      $('suggest-overlay').hidden = true;
+      save('touchline-team', team);
+      save('touchline-mode', mode);
+      if (socket.connected) socket.emit('fan:select', team);
+      renderFan();
+      setView('match');
+      toast('Following ' + team + ' · live offers are on');
+    }
+
+    function browse() {
+      hideDeal(false);
+      selectedTeam = null;
+      mode = 'browse';
+      suggestedTeam = null;
+      $('suggest-overlay').hidden = true;
+      remove('touchline-team');
+      save('touchline-mode', mode);
+      if (socket.connected) socket.emit('fan:clear');
+      renderFan();
+      setView('match');
+      toast('Browsing the match · no team offers');
+    }
+
+    function recordInterest(team) {
+      if (!teams.includes(team) || selectedTeam) return;
+      if (mode === 'new') { mode = 'browse'; save('touchline-mode', mode); renderFan(); }
+      interest[team]++;
+      save('touchline-interest', JSON.stringify(interest));
+      const other = teams.find(candidate => candidate !== team);
+      if (suggestionDismissed || interest[team] < 2 || interest[team] - interest[other] < 2) return;
+      suggestedTeam = team;
+      $('suggest-heading').textContent = 'Looks like you follow ' + team + '. Is that right?';
+      $('suggest-confirm').textContent = 'YES, ' + team.toUpperCase();
+      $('suggest-overlay').hidden = false;
+      $('suggest-confirm').focus();
+    }
+
+    function exploreTeam(team) {
+      if (!teams.includes(team)) return;
+      $('detail-heading').textContent = team + ' in this match';
+      $('detail-copy').textContent = team + ' are part of this live Premier League demo. Follow them for celebration and comfort offers tied to the match.';
+      $('detail-follow').dataset.team = team;
+      $('team-detail').hidden = false;
+      $('search-result').textContent = 'Viewing ' + team + '. Follow when you are ready.';
+      setView('teams');
+      recordInterest(team);
+    }
+
+    function tick() {
+      if (!activeDeal) return;
+      const remaining = Math.max(0, activeDeal.expires_at - Date.now());
+      if (!remaining) {
+        const expired = activeDeal;
+        pushInAppNotification({ id: `expiry:${campaignKey(expired)}`, type: 'expiry', title: 'Offer window expired', body: `${expired.title} is no longer available to claim.`, target: 'offer', referenceId: expired.deal_id });
+        hideDeal(false);
+        return;
+      }
+      const seconds = Math.ceil(remaining / 1000);
+      const clock = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+      $('timer-count').textContent = clock;
+      $('nudge-count').textContent = clock;
+      $('timer-ring').style.setProperty('--arc', remaining / (activeDeal.expires_in_seconds * 1000) * 360 + 'deg');
+    }
+
+    function openDeal() {
+      if (!activeDeal || Date.now() >= activeDeal.expires_at) { hideDeal(false); return; }
+      $('deal-nudge').hidden = true;
+      $('flash-overlay').hidden = false;
+      $('buy-button').focus();
+    }
+
+    async function recordDealImpression(deal) {
+      const campaignId = deal.campaign_id || deal.deal_id;
+      const offerId = deal.selected_offer_id || deal.catalogue_offer_id;
+      const key = `${campaignKey(deal)}:${offerId}`;
+      if (recordedImpressions.has(key)) return;
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!user.ok) return;
+      recordedImpressions.add(key);
+      try {
+        const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/impressions`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.value, offer_id: offerId })
+        });
+        const data = await response.json();
+        if (!response.ok) recordedImpressions.delete(key);
+        else if (!data.duplicate) recordOfferInteraction(deal.offer_category, 'view');
+      } catch (_) { recordedImpressions.delete(key); }
+    }
+
+    function money(minor, currency = 'GBP') {
+      return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(Number(minor || 0) / 100);
+    }
+
+    function selectCatalogueOffer(campaign, excludedOfferIds = []) {
+      const offers = Array.isArray(campaign.eligible_offers) ? campaign.eligible_offers : [campaign];
+      const recommendation = OfferRanking.recommendOffers({
+        offers,
+        excludedOfferIds,
+        preferences: preferenceProfile,
+        interactions: offerInteractions,
+        context: {
+          matchId: currentMatch?.prediction?.match_id,
+          team: selectedTeam,
+          event: campaign.event_type,
+          mood: campaign.mood
+        }
+      });
+      const winner = recommendation.ranked[0];
+      if (!winner) return null;
+      const selected = winner.offer;
+      const matchesCategoryPreference = preferenceProfile?.noOfferPreference
+        || preferenceProfile?.offerPreferences?.includes(selected.category);
+      return {
+        ...campaign,
+        selected_offer_id: selected.offer_id || campaign.catalogue_offer_id,
+        offer_category: selected.category || campaign.offer_category,
+        description: selected.description || campaign.description,
+        checkout_url: selected.checkout_url || campaign.checkout_url,
+        product_name: selected.product_name || campaign.product_name,
+        product_label: `${selected.vendor_name || campaign.vendor_name} · SEEDED DEMO`,
+        product_icon: selected.product_icon || campaign.product_icon,
+        vendor_id: selected.vendor_id || campaign.vendor_id,
+        vendor_name: selected.vendor_name || campaign.vendor_name,
+        original_price_minor: selected.original_price_minor ?? campaign.original_price_minor,
+        discount_type: selected.discount_type || campaign.discount_type,
+        discount_value: selected.discount_value ?? campaign.discount_value,
+        discount_minor: selected.discount_minor ?? campaign.discount_minor,
+        final_price_minor: selected.final_price_minor ?? campaign.final_price_minor,
+        currency: selected.currency || campaign.currency || 'GBP',
+        minimum_basket_minor: selected.minimum_basket_minor ?? campaign.minimum_basket_minor ?? 0,
+        inventory_tracked: selected.inventory_tracked ?? campaign.inventory_tracked,
+        remaining_quantity: selected.remaining_quantity ?? campaign.remaining_quantity,
+        fulfilment_mode: selected.fulfilment_mode || campaign.fulfilment_mode,
+        fulfilment_estimate: selected.fulfilment_estimate || campaign.fulfilment_estimate,
+        funding_source: selected.funding_source || campaign.funding_source,
+        ranking_score: winner.score,
+        ranking_reasons: winner.reasons,
+        ranking_strategy: winner.strategy,
+        ranker_id: recommendation.ranker_id,
+        is_alternative: Boolean(preferenceProfile && !matchesCategoryPreference)
+      };
+    }
+
+    function showDeal(campaign, excludedOfferIds = []) {
+      if (!campaign || campaign.targeted_team !== selectedTeam || completedDeals.has(campaignKey(campaign)) || Date.now() >= campaign.expires_at) return;
+      const deal = selectCatalogueOffer(campaign, excludedOfferIds);
+      if (!deal) {
+        toast('No eligible demo offer remains for this moment');
+        hideDeal(false);
+        return;
+      }
+      clearInterval(countdown);
+      activeDeal = deal;
+      pushInAppNotification({ id: `offer:${campaignKey(deal)}:active`, type: 'offer', title: 'Matchday offer activated', body: `${deal.title} · claim within ${deal.expires_in_seconds} seconds.`, target: 'offer', referenceId: deal.deal_id });
+      recordDealImpression(deal);
+      $('flash-overlay').dataset.mood = deal.mood;
+      $('flash-overlay').dataset.event = deal.event_type;
+      $('deal-label').textContent = deal.mood === 'comfort' ? '☁ COMFORT PICK' : deal.spotlight ? '★ PLAYER MOMENT' : '⚡ FLASH MOMENT';
+      $('deal-alternative').hidden = !deal.is_alternative;
+      $('deal-title').textContent = deal.title;
+      $('deal-description').textContent = deal.description;
+      $('product-icon').textContent = deal.product_icon;
+      $('product-name').textContent = deal.product_name;
+      $('product-label').textContent = deal.product_label;
+      $('original-price').textContent = money(deal.original_price_minor, deal.currency);
+      $('final-price').textContent = money(deal.final_price_minor, deal.currency);
+      $('discount-calculation').textContent = deal.discount_type === 'percentage'
+        ? `${deal.discount_value}% off = ${money(deal.discount_minor, deal.currency)} saved`
+        : `${money(deal.discount_value, deal.currency)} fixed discount`;
+      $('recommendation-label').textContent = deal.ranking_strategy === 'personalised_rules'
+        ? 'PERSONALISED RECOMMENDATIONS · RULE-BASED'
+        : 'PERSONALISED RECOMMENDATIONS · RELEVANCE FALLBACK';
+      $('why-offer').textContent = deal.ranking_reasons.length
+        ? deal.ranking_reasons.slice(0, 2).join(' ')
+        : 'Eligible for this match moment.';
+      $('minimum-basket').textContent = deal.minimum_basket_minor
+        ? `Minimum basket: ${money(deal.minimum_basket_minor, deal.currency)}`
+        : 'No minimum basket';
+      $('inventory-remaining').hidden = !deal.inventory_tracked;
+      $('inventory-remaining').textContent = deal.inventory_tracked ? `Tracked demo inventory: ${deal.remaining_quantity} remaining` : '';
+      $('fulfilment-detail').textContent = `${deal.fulfilment_mode} · ${deal.fulfilment_estimate}`;
+      $('funding-detail').textContent = `Funded by: ${String(deal.funding_source || 'vendor').replace('-', ' ')}`;
+      $('buy-button').disabled = false;
+      $('buy-button').textContent = 'BUY NOW →';
+      const afterPenalty = ['penalty_scored', 'penalty_missed', 'penalty_trailing'].includes(deal.event_type);
+      $('deal-nudge').hidden = !afterPenalty;
+      $('nudge-title').textContent = deal.title;
+      $('nudge-icon').textContent = deal.mood === 'comfort' ? '☁' : '⚽';
+      $('flash-overlay').hidden = afterPenalty;
+      tick();
+      countdown = setInterval(tick, 50);
+      if (!afterPenalty) $('buy-button').focus();
+    }
+
+    function timelineTypeLabel(type) {
+      return {
+        goal: 'Goal',
+        penalty_awarded: 'Penalty awarded',
+        penalty_scored: 'Penalty scored',
+        penalty_missed: 'Penalty missed',
+        red_card: 'Red card',
+        half_time: 'Half-time',
+        full_time: 'Full-time',
+        postponed: 'Postponed',
+        suspended: 'Suspended',
+        spotlight: 'Player spotlight',
+        overturn: 'Decision overturned'
+      }[type] || String(type || 'Event').replaceAll('_', ' ');
+    }
+
+    function timelineOfferLabel(event) {
+      if (event.offer_state === 'waiting_for_result') return 'Offer: waiting until the penalty kick is resolved';
+      if (event.offer_state === 'blocked_until_confirmed') return 'Offer: blocked until this event is confirmed';
+      if (event.offer_state === 'ignored') return 'Offer: none · event ignored';
+      if (event.offer_state === 'cancelled' || event.offer_state === 'withdrawn') return 'Offer: cancelled after the source event changed';
+      if (event.offer_state === 'paused') return 'Offer: paused while the match is suspended';
+      if (event.offer_state === 'exhausted') return 'Offer: demo claim capacity reached';
+      if (event.offer_state === 'expired') return 'Offer: demo window expired';
+      if (!Array.isArray(event.offers) || !event.offers.length) return 'Offer: none';
+      return 'Offer: ' + event.offers.map(offer => `${offer.team} ${offer.mood === 'celebrate' ? 'celebration' : 'comfort'} · ${offer.state}`).join(' · ');
+    }
+
+    function renderTimeline(events) {
+      const timeline = Array.isArray(events) ? [...events].sort((a, b) => a.minute - b.minute || a.sequence - b.sequence) : [];
+      const list = $('timeline-list');
+      list.replaceChildren();
+      list.hidden = timeline.length === 0;
+      $('timeline-minute').textContent = timeline.length ? `${timeline.length} SIMULATED EVENT${timeline.length === 1 ? '' : 'S'}` : 'SEEDED SIMULATION';
+      for (const event of timeline) {
+        const item = document.createElement('article');
+        item.className = 'timeline-event';
+        item.dataset.type = event.type;
+        item.dataset.status = event.status;
+        const minute = document.createElement('span');
+        minute.className = 'timeline-event-minute';
+        minute.textContent = `${event.minute}′`;
+        const main = document.createElement('div');
+        main.className = 'timeline-event-main';
+        const title = document.createElement('strong');
+        title.textContent = event.label;
+        const status = document.createElement('span');
+        status.className = `timeline-status ${event.status}`;
+        status.textContent = event.status.toUpperCase();
+        title.append(' ', status);
+        const meta = document.createElement('span');
+        meta.className = 'timeline-event-meta';
+        meta.textContent = `${timelineTypeLabel(event.type)} · ${event.team || 'Match'} · match ${event.match_status} · ${event.source === 'simulator' ? 'simulator' : 'manual demo'}${event.delayed ? ' · delayed delivery' : ''}`;
+        const offer = document.createElement('span');
+        offer.className = 'timeline-offer';
+        offer.textContent = timelineOfferLabel(event);
+        main.append(title, meta, offer);
+        item.append(minute, main);
+        list.append(item);
+      }
+    }
+
+    function updateMatch(match) {
+      const oldScore = currentMatch && currentMatch.score;
+      currentMatch = match;
+      for (const event of match.timeline || []) {
+        if (event.status !== 'confirmed') continue;
+        pushInAppNotification({
+          id: `event:${event.id}:${event.detected_at}:confirmed`,
+          type: 'event',
+          title: event.label,
+          body: `${timelineTypeLabel(event.type)} at ${event.minute}′ · confirmed simulated match event.`,
+          target: 'match',
+          referenceId: event.id
+        });
+      }
+      const scores = match.score.split('-');
+      $('home-score').textContent = scores[0];
+      $('away-score').textContent = scores[1];
+      if (oldScore && oldScore !== match.score) {
+        $('score').classList.remove('bump');
+        void $('score').offsetWidth;
+        $('score').classList.add('bump');
+      }
+      $('minute').textContent = match.minutes + '′';
+      $('progress-fill').style.width = Math.min(100, match.minutes / 90 * 100) + '%';
+      const statusLabel = { LIVE: '● LIVE DEMO', HT: 'HALF-TIME', FT: 'FULL TIME', POSTPONED: 'POSTPONED', SUSPENDED: 'SUSPENDED' }[match.status] || match.status;
+      $('live-pill').textContent = statusLabel;
+      $('live-pill').classList.toggle('ft', match.status !== 'LIVE');
+      $('eyebrow-text').textContent = match.status === 'FT' ? 'Final whistle' : match.status === 'HT' ? 'Half-time' : match.status === 'POSTPONED' ? 'Match postponed' : match.status === 'SUSPENDED' ? 'Match suspended' : 'Simulated match feed';
+      $('headline').textContent = selectedTeam ? selectedTeam + ' matchday.' : (match.status === 'FT' ? 'The final whistle.' : match.status === 'POSTPONED' ? 'The match is postponed.' : match.status === 'SUSPENDED' ? 'Play is suspended.' : 'The game is on.');
+      if (match.last_event === 'none') {
+        $('event-title').textContent = 'Waiting for the next moment';
+        $('event-detail').textContent = 'The seeded simulator is ready';
+        $('event-symbol').textContent = '⚽';
+        $('match-bottom-icon').textContent = '↗';
+        $('timeline-card').className = 'timeline-card';
+        $('match-bottom-text').textContent = 'A live moment could change everything.';
+      } else {
+        $('event-title').textContent = match.last_event;
+        const playerLine = match.last_event_player ? match.last_event_player + ' · ' : '';
+        $('event-detail').textContent = match.pending_penalty
+          ? (match.last_event_player ? match.last_event_player + ' steps up' : 'Taker to be confirmed') + ' · offer after the kick'
+          : match.status === 'FT' ? 'Final score ' + match.score : playerLine + 'At ' + match.last_event_minute + '′ · score ' + match.score;
+        const eventKind = match.last_event.startsWith('GOAL') || match.last_event.startsWith('PENALTY SCORED') ? 'goal' : match.last_event.startsWith('PENALTY') ? 'penalty' : match.last_event.startsWith('STAR') ? 'spotlight' : match.last_event.startsWith('RED CARD') ? 'red' : 'state';
+        $('event-symbol').textContent = eventKind === 'goal' ? '⚽' : eventKind === 'penalty' ? '🎯' : eventKind === 'spotlight' ? '★' : eventKind === 'red' ? '▰' : 'Ⅱ';
+        $('match-bottom-icon').textContent = eventKind === 'spotlight' ? '★' : eventKind === 'penalty' ? '🎯' : eventKind === 'red' ? '▰' : '↗';
+        $('timeline-card').className = 'timeline-card ' + eventKind;
+        $('match-bottom-text').textContent = match.pending_penalty ? `Penalty to ${match.pending_penalty.team} · awaiting the kick` : match.last_event + (match.last_event_player ? ' · ' + match.last_event_player : '') + ' · ' + match.score;
+      }
+      updateFanStatus();
+      renderTimeline(match.timeline);
+      renderClaimHistory(match.campaigns);
+      renderLobby();
+      if (match.status === 'FT') syncEngagementPrediction();
+      if (currentView === 'profile') renderProfile();
+    }
+
+    function renderClaimHistory(campaigns) {
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!user.ok || !Array.isArray(campaigns)) return;
+      for (const campaign of campaigns) {
+        const claim = Array.isArray(campaign.claims) ? campaign.claims.find(item => item.user_id === user.value) : null;
+        if (claim) claimedCampaigns.set(campaignKey(campaign), claim);
+        if (claim?.order_status && claim.order_status !== 'none') {
+          const orderLabel = claim.order_status === 'completed' ? 'Demo order completed' : 'Demo order cancelled';
+          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:${claim.order_status}`, type: 'order', title: orderLabel, body: `${claim.coupon_code} · order status ${claim.order_status.replaceAll('_', ' ')}.`, target: 'order', referenceId: claim.claim_id });
+        }
+        if (claim?.redemption_status === 'redeemed') {
+          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:redeemed`, type: 'order', title: 'Demo coupon redeemed', body: `${claim.coupon_code} was marked redeemed in the local demo.`, target: 'order', referenceId: claim.claim_id });
+        }
+        if (claim?.status === 'review_required') {
+          $('campaign-notice-title').textContent = 'Your demo claim is preserved';
+          $('campaign-notice-copy').textContent = 'The source event was overturned and its campaign was cancelled. The claim stays visible with fulfilment marked for review.';
+          $('campaign-notice').hidden = false;
+        }
+      }
+    }
+
+    socket.on('connect', () => {
+      $('feed-light').classList.add('online');
+      $('feed-light').setAttribute('aria-label', 'Connected to simulated feed');
+      $('connection-dot').classList.add('online');
+      $('connection-note').dataset.state = 'ready';
+      $('connection-label').textContent = 'Connected to local simulated match feed';
+      if (selectedTeam) socket.emit('fan:select', selectedTeam);
+    });
+    socket.on('disconnect', () => {
+      $('feed-light').classList.remove('online');
+      $('feed-light').setAttribute('aria-label', 'Reconnecting to simulated feed');
+      $('connection-dot').classList.remove('online');
+      $('connection-note').dataset.state = 'loading';
+      $('connection-label').textContent = 'Reconnecting to local simulated feed…';
+    });
+    socket.on('match:state', updateMatch);
+    socket.on('deal:flash', showDeal);
+    socket.on('deal:expired', data => {
+      const title = activeDeal?.deal_id === data.deal_id ? activeDeal.title : 'Matchday offer';
+      pushInAppNotification({ id: `expiry:${data.deal_id}:${data.issued_at || 'legacy'}`, type: 'expiry', title: 'Offer window expired', body: `${title} is no longer available to claim.`, target: 'offer', referenceId: data.deal_id });
+      if (activeDeal && activeDeal.deal_id === data.deal_id) hideDeal(false);
+    });
+    socket.on('campaign:state', campaign => {
+      if (activeDeal?.campaign_id === campaign.campaign_id && campaign.state === 'active') showDeal(campaign);
+      const claimed = claimedCampaigns.get(campaignKey(campaign));
+      if (!claimed) return;
+      if (campaign.state === 'cancelled') {
+        $('campaign-notice-title').textContent = 'Your demo claim is preserved';
+        $('campaign-notice-copy').textContent = 'The match decision was overturned, so this campaign is cancelled. Your claim remains in the audit trail with fulfilment marked for review.';
+        $('campaign-notice').hidden = false;
+      } else if (campaign.state === 'exhausted') {
+        $('campaign-notice-title').textContent = 'Claim recorded';
+        $('campaign-notice-copy').textContent = 'The campaign reached its demo capacity after your claim. Your fulfilment window remains separate and is shown in the campaign audit.';
+        $('campaign-notice').hidden = false;
+      }
+    });
+
+    $('prediction-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      setPredictionError([]);
+      const editing = predictionEditing;
+      const result = editing
+        ? PredictionRules.editPrediction(localStorage, predictionConfig(), readPredictionForm())
+        : PredictionRules.submitPrediction(localStorage, predictionConfig(), readPredictionForm(), { deferReward: true });
+      if (!result.ok) {
+        setPredictionError(result.errors);
+        $('prediction-error').focus();
+        return;
+      }
+      predictionEditing = false;
+      if (editing) {
+        predictionFeedback = 'Prediction updated. Your existing Early Bird eligibility is unchanged.';
+      } else {
+        $('prediction-submit').disabled = true;
+        $('prediction-submit').textContent = 'CHECKING EARLY BIRD…';
+        let decision;
+        try {
+          const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+          const response = await fetch('/api/rewards/early-bird/claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ match_id: state.config.match_id, user_id: state.userId })
+          });
+          decision = await response.json();
+          if (!response.ok) throw new Error(decision.error || 'Reward check failed');
+        } catch (_) {
+          decision = { granted: false, status: 'unavailable' };
+        }
+        const reward = PredictionRules.applyRewardDecision(localStorage, predictionConfig(), decision);
+        if (!reward.ok) {
+          setPredictionError(reward.errors);
+          $('prediction-error').focus();
+          return;
+        }
+        predictionFeedback = reward.rewardGranted
+          ? 'Prediction saved. Your one-time demo Early Bird badge is ready.'
+          : reward.capReached
+            ? 'Prediction saved. The simulated Early Bird cap is full; ordinary eligible offers remain available.'
+            : 'Prediction saved. The Early Bird check is unavailable, but match offers remain accessible.';
+      }
+      Engagement.recordPrediction(localStorage, engagementMatchRecord(result.prediction));
+      const engagementState = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      if (engagementState.claim) Engagement.syncEarlyBirdBadge(localStorage, { granted: true, matchId: engagementState.config.match_id });
+      renderPrediction();
+    });
+    $('prediction-edit').addEventListener('click', () => {
+      const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      if (!state.ok || !state.prediction || state.locked) return;
+      predictionEditing = true;
+      predictionFeedback = '';
+      populatePredictionForm(state.prediction);
+      renderPrediction();
+      $('prediction-home').focus();
+    });
+    $('prediction-cancel').addEventListener('click', () => {
+      predictionEditing = false;
+      predictionFeedback = '';
+      renderPrediction();
+      $('prediction-edit').focus();
+    });
+    for (const input of [$('prediction-home'), $('prediction-away')]) {
+      input.addEventListener('input', () => {
+        const home = Number($('prediction-home').value);
+        const away = Number($('prediction-away').value);
+        if (!$('prediction-home').value || !$('prediction-away').value || !Number.isSafeInteger(home) || !Number.isSafeInteger(away)) return;
+        const outcome = home > away ? 'home' : home < away ? 'away' : 'draw';
+        const radio = document.querySelector(`input[name="prediction-outcome"][value="${outcome}"]`);
+        if (radio) radio.checked = true;
+      });
+    }
+    $('preference-form').addEventListener('submit', event => {
+      event.preventDefault();
+      setPreferenceError([]);
+      const saved = Preferences.savePreferences(localStorage, readPreferenceForm());
+      if (!saved.ok) {
+        setPreferenceError(saved.errors);
+        $('preference-error').focus?.();
+        return;
+      }
+      preferenceProfile = saved.value;
+      selectedTeam = preferenceProfile.favoriteClub;
+      mode = 'follow';
+      save('touchline-team', selectedTeam);
+      save('touchline-mode', mode);
+      if (socket.connected) socket.emit('fan:select', selectedTeam);
+      renderFan();
+      renderLobby();
+      setView('lobby');
+      toast('Preferences saved in this browser');
+    });
+    $('no-offer-preference').addEventListener('change', event => {
+      if (!event.target.checked) return;
+      document.querySelectorAll('input[name="offer-preference"]').forEach(input => { input.checked = false; });
+    });
+    document.querySelectorAll('input[name="offer-preference"]').forEach(input => input.addEventListener('change', event => {
+      if (event.target.checked) $('no-offer-preference').checked = false;
+    }));
+    document.querySelectorAll('[data-edit-preferences]').forEach(button => button.addEventListener('click', openPreferenceEditor));
+    $('join-match').addEventListener('click', () => {
+      if (!$('join-match').disabled) {
+        Engagement.recordMatchParticipation(localStorage, { matchId: predictionConfig().match_id, matchOrdinal: 1 });
+        setView('match');
+      }
+    });
+    $('group-opt-in').addEventListener('change', async event => {
+      if (event.target.checked) {
+        save(GROUP_ENABLED_KEY, 'true');
+        $('watch-features').hidden = false;
+        if (selectedTeam) $('watch-team').value = selectedTeam;
+        await loadWatchParty(stored(GROUP_CODE_KEY) || invitedGroupCode);
+        return;
+      }
+      const code = stored(GROUP_CODE_KEY);
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (code && user.ok) {
+        try { await fetch(`/api/watch-parties/${encodeURIComponent(code)}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.value }) }); }
+        catch (_) { /* Local preference still turns off even if the demo server is unavailable. */ }
+      }
+      remove(GROUP_ENABLED_KEY); remove(GROUP_CODE_KEY); watchParty = null;
+      $('watch-features').hidden = true;
+      toast('Watch-party features turned off');
+    });
+    $('watch-create-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!user.ok) { $('watch-status').textContent = user.errors.join(' '); return; }
+      const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = 'CREATING…';
+      try {
+        const response = await fetch('/api/watch-parties', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.value, match_id: predictionConfig().match_id, name: $('watch-name').value, team: $('watch-team').value, notifications_enabled: $('watch-notifications').checked })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Local watch party could not be created.');
+        watchParty = data.group; save(GROUP_CODE_KEY, data.group.code); renderActiveWatchParty(data.group);
+      } catch (error) { $('watch-status').textContent = error.message; }
+      finally { button.disabled = false; button.textContent = 'CREATE LOCAL WATCH PARTY'; }
+    });
+    $('watch-join').addEventListener('click', async () => {
+      const code = $('watch-join').dataset.code;
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!code || !user.ok) return;
+      $('watch-join').disabled = true;
+      try {
+        const response = await fetch(`/api/watch-parties/${encodeURIComponent(code)}/join`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.value, notifications_enabled: $('watch-notifications').checked })
+        });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Local group could not be joined.');
+        watchParty = data.group; save(GROUP_CODE_KEY, code); renderActiveWatchParty(data.group);
+      } catch (error) { $('watch-status').textContent = error.message; }
+      finally { $('watch-join').disabled = false; }
+    });
+    $('watch-copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('watch-invite-link').value); toast('Local invite copied'); }
+      catch (_) { $('watch-invite-link').focus(); $('watch-invite-link').select(); $('watch-status').textContent = 'Copy is unavailable here. The local invite link is selected for manual copy.'; }
+    });
+    $('watch-leave').addEventListener('click', async () => {
+      const code = stored(GROUP_CODE_KEY); const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!code || !user.ok) return;
+      $('watch-leave').disabled = true;
+      try {
+        const response = await fetch(`/api/watch-parties/${encodeURIComponent(code)}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.value }) });
+        const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not leave the local group.');
+        remove(GROUP_CODE_KEY); watchParty = null; await loadWatchParty(invitedGroupCode && invitedGroupCode !== code ? invitedGroupCode : null);
+        toast('Left the local watch party');
+      } catch (error) { $('watch-status').textContent = error.message; }
+      finally { $('watch-leave').disabled = false; }
+    });
+    document.querySelectorAll('[data-follow-team]').forEach(button => button.addEventListener('click', () => followTeam(button.dataset.followTeam)));
+    document.querySelectorAll('[data-view-team], [data-explore-team]').forEach(button => button.addEventListener('click', () => exploreTeam(button.dataset.viewTeam || button.dataset.exploreTeam)));
+    document.querySelectorAll('[data-go]').forEach(button => button.addEventListener('click', () => setView(button.dataset.go)));
+    $('browse-first').addEventListener('click', browse);
+    $('browse-from-teams').addEventListener('click', browse);
+    $('reset-demo').addEventListener('click', () => {
+      hideDeal(false);
+      selectedTeam = null;
+      mode = 'new';
+      suggestedTeam = null;
+      suggestionDismissed = false;
+      interest = { Arsenal: 0, Chelsea: 0 };
+      remove('touchline-team');
+      remove('touchline-mode');
+      remove('touchline-interest');
+      remove('touchline-suggestion-dismissed');
+      const groupCode = stored(GROUP_CODE_KEY);
+      const localUser = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (groupCode && localUser.ok) fetch(`/api/watch-parties/${encodeURIComponent(groupCode)}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: localUser.value }) }).catch(() => {});
+      remove(GROUP_ENABLED_KEY);
+      remove(GROUP_CODE_KEY);
+      Engagement.clear(localStorage);
+      NotificationCenter.clear(localStorage);
+      Preferences.clearPreferences(localStorage);
+      preferenceProfile = null;
+      if (socket.connected) socket.emit('fan:clear');
+      $('suggest-overlay').hidden = true;
+      $('team-detail').hidden = true;
+      populatePreferenceForm(null);
+      renderFan();
+      setView('onboarding');
+    });
+    $('detail-follow').addEventListener('click', () => followTeam($('detail-follow').dataset.team));
+    $('search-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const query = $('team-search').value.trim().toLowerCase();
+      const matches = teams.filter(team => query.includes(team.toLowerCase()));
+      if (matches.length === 1) exploreTeam(matches[0]);
+      else $('search-result').textContent = 'Search one team at a time: Arsenal or Chelsea.';
+    });
+    $('suggest-confirm').addEventListener('click', () => followTeam(suggestedTeam));
+    $('suggest-other').addEventListener('click', () => {
+      suggestionDismissed = true;
+      save('touchline-suggestion-dismissed', 'true');
+      $('suggest-overlay').hidden = true;
+      setView('teams');
+      $('team-search').focus();
+    });
+    for (const id of ['notify-events', 'notify-offers', 'notify-quiet']) {
+      $(id).addEventListener('change', () => {
+        const saved = NotificationCenter.setPreferences(localStorage, {
+          eventAlerts: $('notify-events').checked,
+          offerAlerts: $('notify-offers').checked,
+          quietMode: $('notify-quiet').checked
+        });
+        $('notification-error').textContent = saved.ok ? '' : saved.errors.join(' ');
+        $('notification-error').hidden = saved.ok;
+        renderNotificationCenter();
+      });
+    }
+    $('notification-read-all').addEventListener('click', () => {
+      const result = NotificationCenter.markAllRead(localStorage);
+      if (!result.ok) { $('notification-error').textContent = result.errors.join(' '); $('notification-error').hidden = false; }
+      renderNotificationCenter();
+    });
+    $('nudge-open').addEventListener('click', openDeal);
+    $('skip-deal').addEventListener('click', () => hideDeal(true));
+    $('buy-button').addEventListener('click', async () => {
+      if (!activeDeal || Date.now() >= activeDeal.expires_at) { hideDeal(false); return; }
+      const deal = activeDeal;
+      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      if (!user.ok) { toast(user.errors.join(' ')); return; }
+      $('buy-button').disabled = true;
+      $('buy-button').textContent = 'CLAIMING…';
+      try {
+        const response = await fetch(`/api/campaigns/${encodeURIComponent(deal.campaign_id || deal.deal_id)}/claim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.value,
+            offer_id: deal.selected_offer_id || deal.catalogue_offer_id,
+            basket_subtotal_minor: deal.original_price_minor
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const alternatives = data.campaign && selectCatalogueOffer(data.campaign, [deal.selected_offer_id]);
+          if (alternatives) {
+            showDeal(data.campaign, [deal.selected_offer_id]);
+            toast('That offer became unavailable · showing an eligible alternative');
+            return;
+          }
+          throw new Error(data.error || 'This offer could not be claimed.');
+        }
+        claimedCampaigns.set(campaignKey(data.campaign), data.claim);
+        if (!data.duplicate) recordOfferInteraction(deal.offer_category, 'claim');
+        pushInAppNotification({ id: `claim:${data.claim.claim_id}:${data.claim.claimed_at}`, type: 'claim', title: data.duplicate ? 'Existing claim ready' : 'Offer claimed', body: `${data.claim.coupon_code} · ${money(data.claim.final_price_minor, data.claim.currency)} demo claim saved.`, target: 'order', referenceId: data.claim.claim_id });
+        completedDeals.add(campaignKey(deal));
+        const localCheckout = new URL('/demo-checkout.html', window.location.origin);
+        localCheckout.searchParams.set('claim', data.claim.claim_id);
+        localCheckout.searchParams.set('coupon', data.claim.coupon_code);
+        localCheckout.searchParams.set('offer', deal.product_name || deal.title);
+        window.open(localCheckout.toString(), '_blank', 'noopener,noreferrer');
+        hideDeal(false);
+        toast(data.duplicate ? 'Your existing demo claim is ready' : 'Demo claim saved · opening retailer');
+      } catch (error) {
+        $('buy-button').disabled = false;
+        $('buy-button').textContent = 'BUY NOW →';
+        toast(error.message);
+      }
+    });
+    document.addEventListener('visibilitychange', tick);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !$('flash-overlay').hidden) hideDeal(true);
+      else if (event.key === 'Escape' && !$('suggest-overlay').hidden) {
+        suggestionDismissed = true;
+        save('touchline-suggestion-dismissed', 'true');
+        $('suggest-overlay').hidden = true;
+      }
+    });
+    populatePreferenceForm(preferenceProfile);
+    renderFan();
+    if (savedPreferenceState.status === 'valid') {
+      setView('lobby');
+    } else {
+      setView('onboarding');
+      if (savedPreferenceState.status === 'invalid') {
+        setPreferenceError(['Your saved preferences were invalid. Please review and save them again.']);
+      }
+    }
+  </script>
+</body>
+</html>

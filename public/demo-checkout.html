@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayPulse · Demo claim</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    :root { color-scheme: dark; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 0, #283a30 0, #111814 48%, #090d0b 100%); color: #f4f7f4; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    main { width: min(100%, 430px); padding: 28px; border: 1px solid rgba(192, 255, 92, .24); border-radius: 28px; background: rgba(18, 27, 22, .96); box-shadow: 0 24px 80px rgba(0, 0, 0, .42); }
+    .mark { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 18px; background: #c7ff5c; color: #101710; font-size: 26px; }
+    .eyebrow { margin: 22px 0 8px; color: #c7ff5c; font-size: 12px; font-weight: 900; letter-spacing: .14em; }
+    h1 { margin: 0; font-size: clamp(30px, 8vw, 44px); line-height: .98; }
+    p { color: #b8c2ba; line-height: 1.55; }
+    dl { display: grid; gap: 10px; margin: 22px 0; }
+    dl div { padding: 13px 15px; border-radius: 15px; background: #202b24; }
+    dt { color: #96a099; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    dd { margin: 5px 0 0; overflow-wrap: anywhere; font-weight: 800; }
+    a { display: block; padding: 15px 18px; border-radius: 15px; background: #c7ff5c; color: #101710; text-align: center; text-decoration: none; font-weight: 950; }
+    a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    .note { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">✓</div>
+    <p class="eyebrow">LOCAL DEMO CONFIRMATION</p>
+    <h1>Your offer is claimed.</h1>
+    <p>This page simulates the retailer handoff. No order, payment, delivery, or vendor request has been created.</p>
+    <dl>
+      <div><dt>Offer</dt><dd id="offer">PlayPulse demo offer</dd></div>
+      <div><dt>Demo coupon</dt><dd id="coupon">Saved in this local session</dd></div>
+      <div><dt>Claim reference</dt><dd id="claim">Local claim</dd></div>
+    </dl>
+    <a href="/">RETURN TO PLAYPULSE</a>
+    <p class="note">All match, campaign, inventory, and transaction data remains inside the local prototype.</p>
+  </main>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const safeText = (id, key, fallback) => { document.getElementById(id).textContent = params.get(key) || fallback; };
+    safeText('offer', 'offer', 'PlayPulse demo offer');
+    safeText('coupon', 'coupon', 'Saved in this local session');
+    safeText('claim', 'claim', 'Local claim');
+  </script>
+</body>
+</html>

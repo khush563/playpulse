@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayPulse — merchant control</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    :root { background: var(--pp-canvas); color: var(--pp-ink); }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .shell { width: min(100%, 760px); overflow: hidden; border-radius: 28px; background: #fafbf8; box-shadow: 0 28px 80px #1e392d2b; }
+    .hero { position: relative; padding: 27px 31px 29px; background: radial-gradient(circle at 85% 4%, #30604c, transparent 38%), linear-gradient(140deg, #173f32, #0c2522); color: white; }
+    .hero::after { content: ""; position: absolute; width: 260px; height: 260px; right: 70px; top: 22px; border: 1px solid #ffffff12; border-radius: 50%; pointer-events: none; }
+    .hero-top, .hero-copy, .scoreboard { position: relative; z-index: 1; }
+    .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .hero-top .pp-context-link { border-color: #d7f19c55; background: #ffffff0d; color: #d7f19c; }
+    .hero-top .pp-context-link:hover { border-color: #d7f19c99; background: #ffffff18; }
+    .hero-copy { margin-top: 29px; }
+    .kicker { color: #d1eb9a; font-size: 10px; font-weight: 900; letter-spacing: 1.7px; text-transform: uppercase; }
+    h1 { margin: 7px 0 5px; font-size: 31px; letter-spacing: -1.4px; }
+    .hero-copy p { max-width: 490px; margin: 0; color: #bcd2c3; font-size: 12px; line-height: 1.5; }
+    .scoreboard { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 25px; padding: 17px 19px; border: 1px solid #ffffff26; border-radius: 17px; background: #ffffff0c; }
+    .scoreboard .club { flex: 1; font-size: 13px; font-weight: 850; }
+    .scoreboard .club:last-child { text-align: right; }
+    .scoreboard .club i { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; background: #e13c4e; }
+    .scoreboard .club:last-child i { background: #487de2; }
+    .score-main { text-align: center; }
+    .score-main strong { display: block; font-size: 32px; line-height: 1; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+    .score-main small { display: block; margin-top: 6px; color: #bdd5c6; font-size: 10px; font-weight: 800; }
+    .body { padding: 26px 31px 31px; }
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 12px; }
+    h2 { margin: 0; font-size: 17px; letter-spacing: -.5px; }
+    .section-head span { color: #8d9b90; font-size: 11px; }
+    .control-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
+    .control { display: flex; align-items: center; gap: 11px; min-height: 66px; padding: 11px 13px; border: 1px solid #e2e9df; border-radius: 14px; background: white; color: #193226; text-align: left; box-shadow: 0 5px 15px #29412e0a; transition: transform .15s ease, box-shadow .15s ease; }
+    .control:hover { transform: translateY(-2px); box-shadow: 0 9px 19px #29412e18; }
+    .control:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .control .icon { width: 38px; height: 38px; display: grid; place-items: center; flex-shrink: 0; border-radius: 10px; background: #fce7e8; font-size: 18px; }
+    .control.chelsea .icon { background: #e7eeff; }
+    .control.penalty .icon { background: #f8efd9; }
+    .control.spotlight .icon { background: #f9e9b9; }
+    .control strong { display: block; font-size: 12px; }
+    .control small { display: block; margin-top: 3px; color: #8b978e; font-size: 10px; }
+    .controls-note { margin: 10px 2px 0; color: #77877d; font-size: 10px; line-height: 1.45; }
+    .pending-panel { margin-top: 14px; padding: 17px; border: 1px solid #ecd9a8; border-radius: 16px; background: #fff8e8; }
+    .pending-panel strong { display: block; font-size: 13px; }
+    .pending-panel p { margin: 5px 0 13px; color: #867450; font-size: 11px; line-height: 1.45; }
+    .pending-actions { display: flex; gap: 9px; }
+    .pending-actions button { flex: 1; min-height: 42px; border: 0; border-radius: 10px; background: #206d48; color: white; font-size: 11px; font-weight: 900; }
+    .pending-actions button:last-child { background: #805848; }
+    .pending-actions button:disabled { opacity: .5; cursor: not-allowed; }
+    .finish-row { display: flex; gap: 11px; margin-top: 11px; }
+    .finish-row button { flex: 1; border: 0; border-radius: 12px; padding: 13px; background: #e8eee5; color: #1b4d33; font-size: 11px; font-weight: 900; }
+    .finish-row button:last-child { background: #f6e6e7; color: #a73545; }
+    .finish-row button:disabled { opacity: .5; cursor: not-allowed; }
+    .prediction-admin { margin-top: 22px; padding: 16px; border: 1px solid #dce6d9; border-radius: 16px; background: #f6f9f1; }
+    .prediction-admin h2 { margin-bottom: 5px; }
+    .prediction-admin p { margin: 0 0 12px; color: #718078; font-size: 10px; line-height: 1.45; }
+    .prediction-window-actions { display: flex; gap: 8px; }
+    .prediction-window-actions button { flex: 1; min-height: 40px; border: 1px solid #d3dfcf; border-radius: 10px; background: #fff; color: #31513f; font-size: 10px; font-weight: 900; }
+    .prediction-window-actions button[aria-pressed="true"] { border-color: #53794d; background: #173e33; color: #fff; }
+    .simulator-panel { margin-top: 22px; padding: 17px; border: 1px solid #d8e2d6; border-radius: 17px; background: #f7faf4; }
+    .simulator-banner { display: inline-flex; margin-bottom: 7px; padding: 5px 7px; border-radius: 999px; background: #ffe8c9; color: #8a5315; font-size: 8px; font-weight: 950; letter-spacing: .8px; }
+    .simulator-panel h2 { margin-bottom: 5px; }
+    .simulator-panel > p { margin: 0 0 12px; color: #718078; font-size: 10px; line-height: 1.45; }
+    .simulator-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .simulator-grid button { min-height: 43px; border: 1px solid #d4dfd1; border-radius: 10px; background: #fff; color: #31513f; font-size: 9px; font-weight: 900; }
+    .simulator-grid button:disabled { opacity: .48; cursor: not-allowed; }
+    .audit-panel { margin-top: 22px; padding: 17px; border: 1px solid #d8e2d6; border-radius: 17px; background: #fff; }
+    .audit-panel > p { margin: 5px 0 12px; color: #718078; font-size: 10px; line-height: 1.45; }
+    .audit-list { display: grid; gap: 8px; }
+    .audit-entry { padding: 10px 11px; border: 1px solid #e1e8df; border-radius: 11px; background: #f8faf6; }
+    .audit-entry strong { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; }
+    .audit-entry span { display: block; margin-top: 4px; color: #718078; font-size: 9px; line-height: 1.45; }
+    .audit-empty { color: #819087; font-size: 10px; }
+    .catalogue-list { display: grid; gap: 8px; }
+    .catalogue-entry { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; padding: 10px 11px; border: 1px solid #e1e8df; border-radius: 11px; background: #f8faf6; }
+    .catalogue-entry strong { font-size: 10px; }
+    .catalogue-entry b { color: #1c5639; font-size: 10px; }
+    .catalogue-entry span { grid-column: 1 / -1; color: #718078; font-size: 9px; line-height: 1.4; }
+    .merchant-panel { margin-bottom: 25px; padding: 19px; border: 1px solid #cfdccc; border-radius: 19px; background: linear-gradient(145deg, #f4f8ef, #fff); }
+    .merchant-label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 999px; background: #173e33; color: #d8f19d; font-size: 8px; font-weight: 950; letter-spacing: .8px; }
+    .merchant-panel h2 { margin-top: 10px; }
+    .merchant-intro { margin: 5px 0 15px; color: #687970; font-size: 10px; line-height: 1.5; }
+    .merchant-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .metric { padding: 11px; border: 1px solid #dbe5d7; border-radius: 12px; background: #fff; }
+    .metric span { display: block; color: #7b8a81; font-size: 8px; font-weight: 850; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 5px; color: #173e33; font-size: 17px; }
+    .campaign-list { display: grid; gap: 8px; margin-top: 13px; }
+    .campaign-row { padding: 12px; border: 1px solid #dfe7dc; border-radius: 12px; background: #fff; }
+    .campaign-row-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .campaign-row h3 { margin: 0; font-size: 11px; }
+    .campaign-row p { margin: 4px 0 0; color: #76857c; font-size: 9px; line-height: 1.45; }
+    .campaign-status { padding: 4px 6px; border-radius: 999px; background: #edf3e9; color: #31513f; font-size: 7px; font-weight: 950; letter-spacing: .5px; }
+    .campaign-status[data-status="active"] { background: #dff5cc; color: #276426; }
+    .campaign-status[data-status="paused"] { background: #fff0c9; color: #805710; }
+    .campaign-status[data-status="cancelled"], .campaign-status[data-status="expired"], .campaign-status[data-status="exhausted"] { background: #f5e3e3; color: #8c3941; }
+    .campaign-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .campaign-actions button, .builder-actions button { min-height: 34px; padding: 0 10px; border: 1px solid #cad8c6; border-radius: 9px; background: #fff; color: #31513f; font-size: 8px; font-weight: 900; }
+    .campaign-actions button.primary, .builder-actions button.primary { border-color: #173e33; background: #173e33; color: #fff; }
+    .campaign-actions button.danger { border-color: #edd2d3; color: #963d48; }
+    .campaign-actions button:disabled { opacity: .45; cursor: not-allowed; }
+    .builder { margin-top: 15px; padding-top: 16px; border-top: 1px solid #d8e3d5; }
+    .builder-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .builder-head strong { font-size: 13px; }
+    .builder-head span { color: #728179; font-size: 9px; }
+    .merchant-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .field { display: grid; gap: 5px; min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .field > span, fieldset legend { color: #51645a; font-size: 8px; font-weight: 900; letter-spacing: .4px; text-transform: uppercase; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 39px; box-sizing: border-box; border: 1px solid #cfdacf; border-radius: 9px; background: #fff; color: #173228; padding: 9px 10px; font: inherit; font-size: 10px; }
+    .field textarea { min-height: 67px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus { outline: 3px solid #7cab6840; border-color: #54814b; }
+    fieldset.field { margin: 0; padding: 9px 10px; border: 1px solid #cfdacf; border-radius: 9px; background: #fff; }
+    .checks { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+    .checks label { display: inline-flex; align-items: center; gap: 5px; color: #43574c; font-size: 9px; }
+    .checks input { width: auto; min-height: auto; }
+    .form-errors { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #fbe9e9; color: #8a303c; font-size: 9px; line-height: 1.55; }
+    .offer-preview { margin-top: 11px; padding: 14px; border-radius: 13px; background: #102d25; color: #fff; }
+    .offer-preview small { color: #b9d1c1; font-size: 8px; font-weight: 900; letter-spacing: .7px; }
+    .offer-preview h3 { margin: 6px 0 4px; font-size: 15px; }
+    .offer-preview p { margin: 0; color: #bdd0c3; font-size: 9px; line-height: 1.5; }
+    .preview-price { margin-top: 10px; color: #d9f39d; font-size: 14px; font-weight: 950; }
+    .builder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    .builder-actions button { min-height: 40px; }
+    .builder-actions [data-builder-action="cancel-edit"] { display: none; }
+    .analytics-panel { margin-bottom: 25px; padding: 19px; border-radius: 19px; background: #112f27; color: #fff; }
+    .analytics-panel h2 { margin: 10px 0 4px; }
+    .analytics-panel .merchant-intro { color: #b8ccbf; }
+    .analytics-filter { display: grid; gap: 5px; margin-bottom: 13px; }
+    .analytics-filter span { color: #b8ccbf; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+    .analytics-filter select { min-height: 40px; border: 1px solid #ffffff30; border-radius: 9px; background: #fff; color: #173228; padding: 8px 10px; font: inherit; font-size: 10px; }
+    .analytics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .analytics-card { min-height: 72px; padding: 11px; border: 1px solid #ffffff1f; border-radius: 12px; background: #ffffff0b; }
+    .analytics-card span { display: block; color: #b8ccbf; font-size: 7px; font-weight: 900; letter-spacing: .35px; text-transform: uppercase; }
+    .analytics-card strong { display: block; margin-top: 6px; color: #dcf59f; font-size: 17px; }
+    .analytics-card small { display: block; margin-top: 4px; color: #91aa9b; font-size: 7px; line-height: 1.35; }
+    .analytics-empty { margin-top: 11px; padding: 14px; border: 1px dashed #ffffff32; border-radius: 12px; color: #b8ccbf; font-size: 9px; line-height: 1.55; }
+    .analytics-detail { margin-top: 12px; padding: 12px; border-radius: 12px; background: #fff; color: #173228; }
+    .analytics-detail h3 { margin: 0 0 8px; font-size: 11px; }
+    .analytics-lines { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; }
+    .analytics-lines span { font-size: 8px; color: #65766d; }
+    .analytics-lines b { color: #173e33; }
+    .transaction-list { display: grid; gap: 7px; margin-top: 12px; }
+    .transaction { padding: 10px; border: 1px solid #dfe7dc; border-radius: 10px; background: #f8faf6; }
+    .transaction strong { display: block; font-size: 9px; }
+    .transaction p { margin: 4px 0 7px; color: #6e7e75; font-size: 8px; }
+    .transaction .campaign-actions { margin-top: 0; }
+    .estimate-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 12px; }
+    .estimate-form .field input { min-height: 36px; }
+    .estimate-form button { min-height: 36px; border: 0; border-radius: 9px; padding: 0 11px; background: #d9f29c; color: #173e33; font-size: 8px; font-weight: 950; }
+    .estimate-result { margin-top: 9px; padding: 10px; border-radius: 9px; background: #eaf4de; color: #294d32; font-size: 8px; line-height: 1.5; }
+    .experiment-note { margin: 12px 0 0; padding: 11px; border-left: 3px solid #779c61; background: #ffffff0a; color: #b8ccbf; font-size: 8px; line-height: 1.55; }
+    .copilot-panel { margin-bottom: 25px; padding: 19px; border: 1px solid #d7e0cb; border-radius: 19px; background: linear-gradient(145deg, #f2f6e9, #fffaf0); }
+    .copilot-panel h2 { margin: 9px 0 4px; }
+    .copilot-panel .merchant-intro { margin-bottom: 15px; }
+    .copilot-badge { display: inline-flex; padding: 5px 8px; border-radius: 999px; background: #173e33; color: #d9f39d; font-size: 7px; font-weight: 950; letter-spacing: .65px; }
+    .copilot-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .copilot-form button { min-height: 41px; grid-column: 1 / -1; border: 0; border-radius: 10px; background: #173e33; color: #fff; font-size: 9px; font-weight: 950; }
+    .copilot-note { grid-column: 1 / -1; margin: -1px 0 1px; color: #68766e; font-size: 8px; line-height: 1.45; }
+    .copilot-result { margin-top: 13px; padding: 15px; border: 1px solid #cfdbc5; border-radius: 14px; background: #fff; }
+    .copilot-result-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .copilot-result-head span { color: #597064; font-size: 8px; font-weight: 900; }
+    .copilot-source { padding: 4px 7px; border-radius: 999px; background: #f0e4c8; color: #765619 !important; }
+    .copilot-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 11px; }
+    .copilot-metric { padding: 10px; border-radius: 10px; background: #f4f7ef; }
+    .copilot-metric span { display: block; color: #6c7b72; font-size: 7px; font-weight: 900; text-transform: uppercase; }
+    .copilot-metric strong { display: block; margin-top: 5px; color: #173e33; font-size: 16px; }
+    .copilot-copy { margin: 11px 0 0; color: #5c6c63; font-size: 8px; line-height: 1.55; }
+    .copilot-copy strong { color: #294c3b; }
+    .copilot-list { margin: 8px 0 0; padding-left: 16px; color: #445c50; font-size: 8px; line-height: 1.55; }
+    .copilot-apply { min-height: 34px; margin-top: 10px; border: 1px solid #b9ccb0; border-radius: 9px; background: #eef6df; color: #294d32; font-size: 8px; font-weight: 950; }
+    .activity { margin-top: 27px; }
+    .activity-card { min-height: 70px; padding: 14px; border: 1px solid #e4ebe2; border-radius: 14px; background: white; }
+    .activity-card strong { display: block; font-size: 12px; }
+    .activity-card small { display: block; margin-top: 5px; color: #839187; font-size: 11px; line-height: 1.4; }
+    .status { margin: 11px 1px 0; font-size: 11px; font-weight: 750; }
+    @media (max-width: 560px) { body { padding: 0; } .shell { min-height: 100vh; border-radius: 0; } .hero, .body { padding-left: 21px; padding-right: 21px; } .control-grid, .merchant-form, .estimate-form, .copilot-form { grid-template-columns: 1fr; } .field.full, .copilot-form button, .copilot-note { grid-column: auto; } .merchant-metrics, .analytics-grid { grid-template-columns: repeat(2, 1fr); } .copilot-metrics { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-top"><div class="pp-brand"><span class="pp-brand-mark" aria-hidden="true">↗</span>playpulse.</div><a class="pp-context-link" href="/">FAN APP</a></div>
+      <div class="hero-copy"><div class="kicker">LOCAL MATCH CONTROL</div><h1>Make a moment happen.</h1><p>Trigger a mock event and watch the fan experience update in real time. Penalty offers wait until the kick is over.</p></div>
+      <div class="scoreboard"><span class="club"><i></i>Arsenal</span><div class="score-main"><strong id="score">0 : 0</strong><small id="clock">14′ · LIVE</small></div><span class="club"><i></i>Chelsea</span></div>
+    </section>
+    <section class="body">
+      <section class="merchant-panel" aria-labelledby="merchant-heading">
+        <span class="merchant-label">LOCAL DEMO · NO ORDERS OR CHARGES</span>
+        <h2 id="merchant-heading">Demo merchant account</h2>
+        <p class="merchant-intro">Build event-triggered campaigns from seeded products. Inventory and budget totals below come from real reservations made inside this local demo.</p>
+        <div class="merchant-metrics" aria-label="Campaign totals">
+          <div class="metric"><span>Active campaigns</span><strong id="merchant-active">—</strong></div>
+          <div class="metric"><span>Active reservations</span><strong id="merchant-reservations">—</strong></div>
+          <div class="metric"><span>Budget committed</span><strong id="merchant-budget">—</strong></div>
+        </div>
+        <div class="campaign-list" id="merchant-campaign-list"><span class="audit-empty">Loading demo campaigns…</span></div>
+        <div class="builder">
+          <div class="builder-head"><strong id="builder-heading">Create campaign</strong><span>Saved locally in memory</span></div>
+          <form id="merchant-campaign-form" novalidate>
+            <input type="hidden" id="merchant-edit-id">
+            <div class="merchant-form">
+              <label class="field"><span>Campaign title</span><input id="merchant-title" required maxlength="100" value="Match moment bundle"></label>
+              <label class="field"><span>Demo vendor</span><select id="merchant-vendor" required></select></label>
+              <label class="field full"><span>Description</span><textarea id="merchant-description" required maxlength="240">Celebrate the match moment with this local demo offer.</textarea></label>
+              <label class="field"><span>Eligible product</span><select id="merchant-product" required></select></label>
+              <label class="field"><span>Supported demo match</span><select id="merchant-match"><option value="arsenal-chelsea-local-demo">Arsenal–Chelsea · local demo</option></select></label>
+              <fieldset class="field full"><legend>Participating events</legend><div class="checks" id="merchant-events"><label><input type="checkbox" value="goal" checked> Goal</label><label><input type="checkbox" value="penalty_scored"> Penalty scored</label><label><input type="checkbox" value="penalty_missed"> Penalty missed</label><label><input type="checkbox" value="spotlight"> Player spotlight</label><label><input type="checkbox" value="win"> Win</label><label><input type="checkbox" value="loss"> Loss</label></div></fieldset>
+              <fieldset class="field full"><legend>Supported teams</legend><div class="checks" id="merchant-teams"><label><input type="checkbox" value="Arsenal" checked> Arsenal</label><label><input type="checkbox" value="Chelsea"> Chelsea</label></div></fieldset>
+              <label class="field"><span>Discount type</span><select id="merchant-discount-type"><option value="percentage">Percentage</option><option value="fixed_amount">Fixed amount (£)</option></select></label>
+              <label class="field"><span>Discount value</span><input id="merchant-discount" type="number" min="1" step="1" value="20" required></label>
+              <label class="field"><span>Starts at</span><input id="merchant-start" type="datetime-local" required></label>
+              <label class="field"><span>Ends at</span><input id="merchant-end" type="datetime-local" required></label>
+              <label class="field"><span>Claim window · seconds</span><input id="merchant-claim-window" type="number" min="30" max="86400" value="300" required></label>
+              <label class="field"><span>Minimum basket · £</span><input id="merchant-minimum" type="number" min="0" step="0.01" value="0" required></label>
+              <label class="field"><span>Inventory cap</span><input id="merchant-inventory" type="number" min="1" step="1" value="20" placeholder="Blank = untracked"></label>
+              <label class="field"><span>Maximum redemptions</span><input id="merchant-redemptions" type="number" min="1" step="1" value="20" required></label>
+              <label class="field"><span>Campaign budget · £</span><input id="merchant-campaign-budget" type="number" min="0" step="0.01" value="400" required></label>
+              <label class="field"><span>Funding source</span><select id="merchant-funding"><option value="vendor">Vendor</option><option value="sponsor">Sponsor</option><option value="co-funded">Co-funded</option></select></label>
+              <label class="field"><span>Vendor share of discount · %</span><input id="merchant-vendor-share" type="number" min="1" max="99" step="1" value="50" disabled title="Choose co-funded to configure the vendor share."></label>
+              <label class="field"><span>Fulfilment mode</span><select id="merchant-fulfilment"><option value="delivery">Delivery</option><option value="pickup">Pickup</option><option value="digital">Digital</option></select></label>
+              <label class="field"><span>Fulfilment estimate</span><input id="merchant-fulfilment-estimate" value="2–4 demo business days" required></label>
+            </div>
+            <div class="form-errors" id="merchant-errors" role="alert" hidden></div>
+            <article class="offer-preview" id="merchant-preview" hidden aria-live="polite"></article>
+            <div class="builder-actions"><button type="button" data-builder-action="preview">PREVIEW OFFER</button><button class="primary" type="submit">SAVE SCHEDULED CAMPAIGN</button><button type="button" data-builder-action="cancel-edit">CANCEL EDIT</button></div>
+          </form>
+        </div>
+      </section>
+      <section class="analytics-panel" aria-labelledby="analytics-heading">
+        <span class="merchant-label">ACTUAL LOCAL RECORDS</span>
+        <h2 id="analytics-heading">Campaign economics</h2>
+        <p class="merchant-intro">Views, claims, orders, redemptions, cancellations and money values come only from actions completed in this running demo.</p>
+        <label class="analytics-filter"><span>Analytics scope</span><select id="analytics-campaign"><option value="all">All campaigns</option></select></label>
+        <div class="analytics-grid" id="analytics-grid" aria-live="polite"></div>
+        <div class="analytics-empty" id="analytics-empty">No fan activity yet. Trigger a match event, view an offer in the fan app, and claim it to create measured records.</div>
+        <section class="analytics-detail" aria-labelledby="economics-detail-heading">
+          <h3 id="economics-detail-heading">Economics and demo transactions</h3>
+          <div class="analytics-lines" id="analytics-lines"></div>
+          <div class="transaction-list" id="analytics-transactions"><span class="audit-empty">No coupon claims for this scope.</span></div>
+          <form class="estimate-form" id="contribution-form">
+            <label class="field"><span>Unit product cost · £</span><input id="analytics-unit-cost" type="number" min="0" step="0.01" placeholder="Required"></label>
+            <label class="field"><span>Unit fulfilment cost · £</span><input id="analytics-fulfilment-cost" type="number" min="0" step="0.01" placeholder="Required"></label>
+            <button type="submit">CALCULATE ESTIMATE</button>
+          </form>
+          <div class="estimate-result" id="contribution-result" hidden role="status"></div>
+        </section>
+        <p class="experiment-note"><strong>Incrementality needs an experiment.</strong> A future test should randomly hold back an eligible control group, then compare completed order rates and contribution over the same period. This demo has no control group, so it reports no revenue uplift or incremental sales result.</p>
+      </section>
+      <section class="copilot-panel" aria-labelledby="copilot-heading">
+        <span class="copilot-badge">DEMO ASSISTANT · DETERMINISTIC RULES</span>
+        <h2 id="copilot-heading">Campaign planning copilot</h2>
+        <p class="merchant-intro">Explore a conservative stock cap and an expected claim/order range. This is scenario planning with no live AI model and no claim of predictive accuracy.</p>
+        <form class="copilot-form" id="copilot-form" novalidate>
+          <label class="field full"><span>Campaign</span><select id="copilot-campaign" required></select></label>
+          <label class="field"><span>Campaign goal</span><select id="copilot-goal"><option value="claims">Drive claims</option><option value="orders">Completed orders</option><option value="protect_margin">Protect margin</option><option value="awareness">Awareness learning</option></select></label>
+          <label class="field"><span>Expected eligible reach · merchant input</span><input id="copilot-reach" type="number" min="1" step="1" placeholder="e.g. 100" required></label>
+          <label class="field"><span>Available stock now</span><input id="copilot-stock" type="number" min="0" step="1" required></label>
+          <label class="field"><span>Available campaign budget · £</span><input id="copilot-budget" type="number" min="0" step="0.01" required></label>
+          <label class="field"><span>Optional stock cap override</span><input id="copilot-override" type="number" min="0" step="1" placeholder="Use recommendation"></label>
+          <label class="field"><span>Unit product cost · £</span><input id="copilot-unit-cost" type="number" min="0" step="0.01" placeholder="Optional with fulfilment"></label>
+          <label class="field"><span>Unit fulfilment cost · £</span><input id="copilot-fulfilment-cost" type="number" min="0" step="0.01" placeholder="Optional with product cost"></label>
+          <p class="copilot-note">Costs are used only when both values are supplied. Recommendations cannot exceed the campaign’s actual local stock, remaining budget, or remaining redemption limit.</p>
+          <button type="submit">GENERATE DEMO GUIDANCE</button>
+        </form>
+        <div class="form-errors" id="copilot-errors" role="alert" hidden></div>
+        <article class="copilot-result" id="copilot-result" hidden aria-live="polite"></article>
+      </section>
+      <div class="section-head"><h2>Simulated triggers</h2><span>Choose an event</span></div>
+      <div class="control-grid">
+        <button class="control" type="button" data-event="goal" data-team="Arsenal" data-player="Bukayo Saka"><span class="icon">⚽</span><span><strong>Goal · Arsenal</strong><small>Bukayo Saka scores</small></span></button>
+        <button class="control chelsea" type="button" data-event="goal" data-team="Chelsea" data-player="Cole Palmer"><span class="icon">⚽</span><span><strong>Goal · Chelsea</strong><small>Cole Palmer scores</small></span></button>
+        <button class="control penalty" type="button" data-event="penalty" data-team="Arsenal" data-player="Bukayo Saka"><span class="icon">🎯</span><span><strong>Penalty to Arsenal</strong><small>Bukayo Saka steps up</small></span></button>
+        <button class="control penalty chelsea" type="button" data-event="penalty" data-team="Chelsea" data-player="Cole Palmer"><span class="icon">🎯</span><span><strong>Penalty to Chelsea</strong><small>Cole Palmer steps up</small></span></button>
+      </div>
+      <p class="controls-note" id="controls-note" role="status" aria-live="polite">All simulated triggers are available.</p>
+      <section class="pending-panel" id="penalty-resolution" hidden aria-live="polite"><strong id="penalty-label">Penalty awaiting result</strong><p>The fan sees the award, with no shopping interruption. Record the kick to release the offer.</p><div class="pending-actions"><button type="button" data-event="penalty-result" data-outcome="scored">⚽ SCORED</button><button type="button" data-event="penalty-result" data-outcome="missed">↘ MISSED</button></div></section>
+      <div class="section-head" style="margin-top:23px"><h2>Player spotlight</h2><span>Featured match moment</span></div>
+      <div class="control-grid">
+        <button class="control spotlight" type="button" data-event="spotlight" data-team="Arsenal" data-player="Bukayo Saka"><span class="icon">★</span><span><strong>Bukayo Saka in focus</strong><small>Arsenal fan moment</small></span></button>
+        <button class="control spotlight chelsea" type="button" data-event="spotlight" data-team="Chelsea" data-player="Cole Palmer"><span class="icon">★</span><span><strong>Cole Palmer in focus</strong><small>Chelsea fan moment</small></span></button>
+      </div>
+      <div class="finish-row"><button type="button" data-event="full-time">🏁 END MATCH</button><button type="button" data-event="reset">↺ RESET MATCH</button></div>
+      <section class="simulator-panel" aria-labelledby="simulator-heading"><span class="simulator-banner">SEEDED SIMULATOR · NOT A LIVE FEED</span><h2 id="simulator-heading">Deterministic demo events</h2><p>Each sample has a stable event ID. Replaying it demonstrates deduplication; overturn reverses the latest eligible simulator decision.</p><div class="simulator-grid">
+        <button type="button" data-sim-type="goal" data-lifecycle="pending_confirmation" data-event-id="demo-pending-goal-001" data-team="Arsenal" data-player="Bukayo Saka" data-minute="22">◎ DETECT GOAL · AWAIT CONFIRMATION</button>
+        <button type="button" data-sim-type="goal" data-event-id="demo-goal-001" data-team="Arsenal" data-player="Bukayo Saka" data-minute="23">⚽ SAMPLE ARSENAL GOAL · 23′</button>
+        <button type="button" data-sim-type="red_card" data-event-id="demo-red-001" data-team="Chelsea" data-minute="31">▰ SAMPLE CHELSEA RED · 31′</button>
+        <button type="button" data-sim-type="half_time" data-event-id="demo-half-001" data-minute="45">◫ SAMPLE HALF-TIME · 45′</button>
+        <button type="button" data-sim-type="suspended" data-event-id="demo-suspend-001" data-minute="52">Ⅱ SUSPEND MATCH · 52′</button>
+        <button type="button" data-sim-type="postponed" data-event-id="demo-postponed-001" data-minute="14">⌁ POSTPONE MATCH</button>
+        <button type="button" data-sim-action="advance">+5′ ADVANCE TIME</button>
+        <button type="button" data-sim-action="duplicate" disabled>⧉ REPLAY LAST EVENT ID</button>
+        <button type="button" data-sim-action="overturn" disabled>↶ OVERTURN LAST EVENT</button>
+        <button type="button" data-sim-action="confirm" disabled>✓ CONFIRM AWAITING EVENT</button>
+        <button type="button" data-sim-action="ignore" disabled>× IGNORE AWAITING EVENT</button>
+      </div></section>
+      <section class="audit-panel" aria-labelledby="audit-heading"><h2 id="audit-heading">State machine audit</h2><p>Local event and campaign transitions explain exactly why an offer activated, paused, expired, or was cancelled.</p><div class="audit-list" id="audit-list"><span class="audit-empty">No transitions yet.</span></div></section>
+      <section class="audit-panel" aria-labelledby="catalogue-heading"><h2 id="catalogue-heading">Seeded offer catalogue</h2><p>These local demo vendors and quantities power eligibility and reservations. Untracked offers never show a made-up remaining count.</p><div class="catalogue-list" id="catalogue-list"><span class="audit-empty">Loading local catalogue…</span></div></section>
+      <section class="prediction-admin" aria-labelledby="prediction-control-heading"><h2 id="prediction-control-heading">Simulated prediction window</h2><p>No kickoff time is seeded, so use this explicit switch to demonstrate edits before lock and the locked state.</p><div class="prediction-window-actions"><button type="button" data-prediction-state="open" aria-pressed="true">OPEN WINDOW</button><button type="button" data-prediction-state="locked" aria-pressed="false">LOCK WINDOW</button></div></section>
+      <div class="activity"><div class="section-head"><h2>Latest moment</h2><span id="match-status">LIVE</span></div><div class="activity-card"><strong id="last-event">Waiting for the next moment</strong><small id="last-detail">The mock match feed is ready.</small></div><p class="status pp-status-line" id="result" data-kind="idle" role="status" aria-live="polite"></p></div>
+    </section>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let matchStatus = 'LIVE';
+    let pendingPenalty = null;
+    let predictionWindowState = 'open';
+    let lastSimulatorEventId = null;
+    let lastOverturnableEventId = null;
+    let lastAwaitingEventId = null;
+    let merchantDashboard = null;
+    let merchantAnalytics = null;
+    let copilotGuidance = null;
+    function syncButtons() {
+      const terminal = ['FT', 'POSTPONED', 'SUSPENDED'].includes(matchStatus);
+      const reason = terminal
+        ? `The simulated match is ${matchStatus}. Reset it to enable event triggers.`
+        : pendingPenalty
+          ? `Resolve the pending ${pendingPenalty.team} penalty before sending another event.`
+          : 'All simulated triggers are available.';
+      document.querySelectorAll('button[data-event]').forEach(button => {
+        const event = button.dataset.event;
+        button.disabled = event === 'reset' ? false : event === 'penalty-result'
+          ? terminal || !pendingPenalty
+          : terminal || Boolean(pendingPenalty);
+        button.title = button.disabled ? reason : '';
+      });
+      document.getElementById('controls-note').textContent = reason;
+      document.querySelectorAll('[data-prediction-state]').forEach(button => {
+        const active = button.dataset.predictionState === predictionWindowState;
+        button.setAttribute('aria-pressed', String(active));
+        button.disabled = active;
+        button.title = active ? `Prediction window is already ${predictionWindowState}.` : '';
+      });
+      document.querySelectorAll('[data-sim-type]').forEach(button => {
+        button.disabled = terminal || Boolean(pendingPenalty);
+        button.title = button.disabled ? reason : `Stable event ID: ${button.dataset.eventId}`;
+      });
+      const advance = document.querySelector('[data-sim-action="advance"]');
+      advance.disabled = terminal;
+      advance.title = terminal ? reason : '';
+      const duplicate = document.querySelector('[data-sim-action="duplicate"]');
+      const overturn = document.querySelector('[data-sim-action="overturn"]');
+      const confirm = document.querySelector('[data-sim-action="confirm"]');
+      const ignore = document.querySelector('[data-sim-action="ignore"]');
+      duplicate.disabled = !lastSimulatorEventId;
+      overturn.disabled = !lastOverturnableEventId;
+      confirm.disabled = !lastAwaitingEventId || terminal;
+      ignore.disabled = !lastAwaitingEventId;
+      duplicate.title = lastSimulatorEventId ? `Replay ${lastSimulatorEventId}` : 'Trigger a simulator event first.';
+      overturn.title = lastOverturnableEventId ? `Overturn ${lastOverturnableEventId}` : 'Trigger an eligible simulator event first.';
+      confirm.title = lastAwaitingEventId ? `Confirm ${lastAwaitingEventId}` : 'Detect an event awaiting confirmation first.';
+      ignore.title = lastAwaitingEventId ? `Ignore ${lastAwaitingEventId}` : 'Detect an event awaiting confirmation first.';
+    }
+    function renderAudit(match) {
+      const list = document.getElementById('audit-list');
+      list.replaceChildren();
+      const records = [];
+      for (const event of match.timeline || []) {
+        for (const step of event.state_history || []) records.push({ at: step.at, title: `EVENT · ${event.id}`, state: step.to, reason: step.reason });
+      }
+      for (const campaign of match.campaigns || []) {
+        for (const step of campaign.state_history || []) records.push({ at: step.at, title: `CAMPAIGN · ${campaign.campaign_id}`, state: step.to, reason: step.reason });
+        for (const claim of campaign.claims || []) {
+          for (const step of claim.status_history || []) records.push({ at: step.at, title: `CLAIM · ${claim.claim_id}`, state: step.to, reason: step.reason });
+        }
+      }
+      if (!records.length) {
+        const empty = document.createElement('span');
+        empty.className = 'audit-empty';
+        empty.textContent = 'No transitions yet.';
+        list.append(empty);
+        return;
+      }
+      for (const record of records.sort((a, b) => b.at - a.at).slice(0, 12)) {
+        const entry = document.createElement('article');
+        entry.className = 'audit-entry';
+        const head = document.createElement('strong');
+        const title = document.createElement('span');
+        const state = document.createElement('b');
+        title.textContent = record.title;
+        state.textContent = record.state.replaceAll('_', ' ').toUpperCase();
+        head.append(title, state);
+        const detail = document.createElement('span');
+        detail.textContent = `${record.reason.replaceAll('_', ' ')} · ${new Date(record.at).toLocaleTimeString()}`;
+        entry.append(head, detail);
+        list.append(entry);
+      }
+    }
+    function formatMoney(minor, currency) {
+      return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currency || 'GBP' }).format(minor / 100);
+    }
+    function localDateTime(iso) {
+      const date = new Date(iso);
+      const offset = date.getTimezoneOffset() * 60_000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    }
+    function checkedValues(id) {
+      return [...document.querySelectorAll(`#${id} input:checked`)].map(input => input.value);
+    }
+    function merchantPayload() {
+      const discountType = document.getElementById('merchant-discount-type').value;
+      const discount = Number(document.getElementById('merchant-discount').value);
+      const inventoryRaw = document.getElementById('merchant-inventory').value;
+      const isoValue = id => {
+        const value = document.getElementById(id).value;
+        const parsed = new Date(value);
+        return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : value;
+      };
+      return {
+        title: document.getElementById('merchant-title').value,
+        description: document.getElementById('merchant-description').value,
+        vendor_id: document.getElementById('merchant-vendor').value,
+        product_id: document.getElementById('merchant-product').value,
+        supported_events: checkedValues('merchant-events'),
+        supported_teams: checkedValues('merchant-teams'),
+        supported_match_ids: [document.getElementById('merchant-match').value],
+        discount_type: discountType,
+        discount_value: discountType === 'fixed_amount' ? Math.round(discount * 100) : discount,
+        minimum_basket_minor: Math.round(Number(document.getElementById('merchant-minimum').value) * 100),
+        claim_window_seconds: Number(document.getElementById('merchant-claim-window').value),
+        quantity_cap: inventoryRaw === '' ? null : Number(inventoryRaw),
+        campaign_budget_minor: Math.round(Number(document.getElementById('merchant-campaign-budget').value) * 100),
+        max_redemptions: Number(document.getElementById('merchant-redemptions').value),
+        campaign_start_at: isoValue('merchant-start'),
+        campaign_end_at: isoValue('merchant-end'),
+        fulfilment_mode: document.getElementById('merchant-fulfilment').value,
+        fulfilment_estimate: document.getElementById('merchant-fulfilment-estimate').value,
+        funding_source: document.getElementById('merchant-funding').value,
+        vendor_funding_percent: Number(document.getElementById('merchant-vendor-share').value)
+      };
+    }
+    function showMerchantErrors(errors) {
+      const box = document.getElementById('merchant-errors');
+      const messages = errors ? Object.values(errors) : [];
+      box.replaceChildren();
+      if (!messages.length) { box.hidden = true; return; }
+      const list = document.createElement('ul');
+      list.style.margin = '0';
+      list.style.paddingLeft = '16px';
+      for (const message of messages) { const item = document.createElement('li'); item.textContent = message; list.append(item); }
+      box.append(list);
+      box.hidden = false;
+    }
+    function renderMerchantPreview(campaign) {
+      const preview = document.getElementById('merchant-preview');
+      preview.replaceChildren();
+      const label = document.createElement('small');
+      label.textContent = 'UNSAVED FAN OFFER PREVIEW';
+      const title = document.createElement('h3');
+      title.textContent = campaign.title;
+      const copy = document.createElement('p');
+      copy.textContent = `${campaign.description} Claim within ${campaign.claim_window_seconds} seconds; ${campaign.fulfilment_estimate}.`;
+      const price = document.createElement('div');
+      price.className = 'preview-price';
+      price.textContent = `${formatMoney(campaign.original_price_minor)} → ${formatMoney(campaign.final_price_minor)} · ${campaign.supported_events.join(', ').replaceAll('_', ' ')}`;
+      preview.append(label, title, copy, price);
+      preview.hidden = false;
+    }
+    function renderMerchantCampaigns(data) {
+      document.getElementById('merchant-active').textContent = data.totals.active_campaigns;
+      document.getElementById('merchant-reservations').textContent = data.totals.active_reservations;
+      document.getElementById('merchant-budget').textContent = formatMoney(data.totals.budget_committed_minor);
+      const list = document.getElementById('merchant-campaign-list');
+      list.replaceChildren();
+      for (const campaign of data.campaigns) {
+        const row = document.createElement('article');
+        row.className = 'campaign-row';
+        const head = document.createElement('div');
+        head.className = 'campaign-row-head';
+        const copy = document.createElement('div');
+        const title = document.createElement('h3');
+        title.textContent = campaign.title;
+        const detail = document.createElement('p');
+        const inventory = campaign.inventory_tracked ? `${campaign.remaining_quantity}/${campaign.quantity_cap} units remain` : 'inventory untracked';
+        detail.textContent = `${campaign.vendor_name} · ${formatMoney(campaign.final_price_minor)} · ${inventory} · ${formatMoney(campaign.metrics.budget_consumed_minor)} budget committed`;
+        copy.append(title, detail);
+        const status = document.createElement('span');
+        status.className = 'campaign-status';
+        status.dataset.status = campaign.status;
+        status.textContent = campaign.status.toUpperCase();
+        head.append(copy, status);
+        const actions = document.createElement('div');
+        actions.className = 'campaign-actions';
+        const terminal = ['cancelled', 'expired', 'exhausted'].includes(campaign.status);
+        const edit = document.createElement('button');
+        edit.type = 'button'; edit.textContent = 'EDIT'; edit.disabled = terminal;
+        edit.title = terminal ? `A ${campaign.status} campaign cannot be edited.` : 'Edit this local campaign.';
+        edit.addEventListener('click', () => editMerchantCampaign(campaign));
+        actions.append(edit);
+        if (!terminal) {
+          const transition = document.createElement('button');
+          transition.type = 'button'; transition.className = 'primary';
+          transition.textContent = campaign.status === 'active' ? 'PAUSE' : campaign.status === 'paused' ? 'RESUME' : 'ACTIVATE';
+          transition.addEventListener('click', () => setMerchantState(campaign.offer_id, campaign.status === 'active' ? 'paused' : 'active'));
+          actions.append(transition);
+          const cancel = document.createElement('button');
+          cancel.type = 'button'; cancel.className = 'danger'; cancel.textContent = 'CANCEL';
+          cancel.addEventListener('click', () => setMerchantState(campaign.offer_id, 'cancelled'));
+          actions.append(cancel);
+        }
+        row.append(head, actions);
+        list.append(row);
+      }
+    }
+    function populateMerchantProducts(selectedId) {
+      const vendorId = document.getElementById('merchant-vendor').value;
+      const products = merchantDashboard?.products.filter(product => product.vendor_id === vendorId) || [];
+      const select = document.getElementById('merchant-product');
+      select.replaceChildren();
+      for (const product of products) {
+        const option = document.createElement('option');
+        option.value = product.product_id;
+        option.textContent = `${product.name} · ${formatMoney(product.unit_price_minor, product.currency)}`;
+        option.selected = product.product_id === selectedId;
+        select.append(option);
+      }
+    }
+    async function loadMerchantDashboard() {
+      try {
+        const response = await fetch('/api/merchant/dashboard', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Merchant dashboard could not be loaded.');
+        const firstLoad = !merchantDashboard;
+        merchantDashboard = data;
+        const vendors = document.getElementById('merchant-vendor');
+        if (firstLoad) {
+          for (const vendor of data.vendors) {
+            const option = document.createElement('option');
+            option.value = vendor.vendor_id; option.textContent = vendor.name; vendors.append(option);
+          }
+          populateMerchantProducts();
+        }
+        renderMerchantCampaigns(data);
+        populateCopilotCampaigns(data);
+      } catch (error) {
+        document.getElementById('merchant-campaign-list').textContent = error.message;
+      }
+    }
+    function populateCopilotCampaigns(data) {
+      const select = document.getElementById('copilot-campaign');
+      const current = select.value;
+      select.replaceChildren();
+      for (const campaign of data.campaigns) {
+        const option = document.createElement('option');
+        option.value = campaign.offer_id;
+        option.textContent = `${campaign.title} · ${campaign.status}`;
+        select.append(option);
+      }
+      if ([...select.options].some(option => option.value === current)) select.value = current;
+      syncCopilotCampaignInputs();
+    }
+    function selectedCopilotCampaign() {
+      const id = document.getElementById('copilot-campaign').value;
+      return merchantDashboard?.campaigns.find(campaign => campaign.offer_id === id) || null;
+    }
+    function syncCopilotCampaignInputs() {
+      const campaign = selectedCopilotCampaign();
+      if (!campaign) return;
+      const remainingRedemptions = Math.max(0, campaign.max_redemptions - campaign.metrics.reservation_count);
+      document.getElementById('copilot-stock').value = campaign.inventory_tracked ? campaign.remaining_quantity : remainingRedemptions;
+      document.getElementById('copilot-budget').value = (campaign.metrics.budget_remaining_minor / 100).toFixed(2);
+      document.getElementById('copilot-result').hidden = true;
+      copilotGuidance = null;
+    }
+    function copilotMinor(id) {
+      const raw = document.getElementById(id).value;
+      return raw === '' ? null : Math.round(Number(raw) * 100);
+    }
+    function copilotPayload() {
+      const override = document.getElementById('copilot-override').value;
+      return {
+        offer_id: document.getElementById('copilot-campaign').value,
+        goal: document.getElementById('copilot-goal').value,
+        expected_reach: Number(document.getElementById('copilot-reach').value),
+        available_stock: Number(document.getElementById('copilot-stock').value),
+        campaign_budget_minor: copilotMinor('copilot-budget'),
+        stock_cap_override: override === '' ? null : Number(override),
+        unit_cost_minor: copilotMinor('copilot-unit-cost'),
+        unit_fulfilment_cost_minor: copilotMinor('copilot-fulfilment-cost')
+      };
+    }
+    function showCopilotErrors(errors) {
+      const box = document.getElementById('copilot-errors');
+      const messages = errors ? Object.values(errors) : [];
+      box.replaceChildren();
+      if (!messages.length) { box.hidden = true; return; }
+      const list = document.createElement('ul'); list.style.margin = '0'; list.style.paddingLeft = '16px';
+      for (const message of messages) { const item = document.createElement('li'); item.textContent = message; list.append(item); }
+      box.append(list); box.hidden = false;
+    }
+    function renderCopilotGuidance(data) {
+      copilotGuidance = data;
+      const result = document.getElementById('copilot-result'); result.replaceChildren();
+      const head = document.createElement('div'); head.className = 'copilot-result-head';
+      const label = document.createElement('span'); label.textContent = 'SIMULATED ESTIMATE';
+      const source = document.createElement('span'); source.className = 'copilot-source'; source.textContent = data.source.label.toUpperCase();
+      head.append(label, source);
+      const metrics = document.createElement('div'); metrics.className = 'copilot-metrics';
+      const values = [
+        ['Expected claims', `${data.estimates.expected_claims.low}–${data.estimates.expected_claims.high}`],
+        ['Completed orders', `${data.estimates.expected_completed_orders.low}–${data.estimates.expected_completed_orders.high}`],
+        ['Conservative cap', String(data.stock.applied_cap)]
+      ];
+      for (const [name, value] of values) { const card = document.createElement('div'); card.className = 'copilot-metric'; const key = document.createElement('span'); key.textContent = name; const amount = document.createElement('strong'); amount.textContent = value; card.append(key, amount); metrics.append(card); }
+      const method = document.createElement('p'); method.className = 'copilot-copy'; method.textContent = data.method;
+      const economics = document.createElement('p'); economics.className = 'copilot-copy';
+      economics.textContent = data.contribution.available
+        ? `${data.contribution.label}: ${formatMoney(data.contribution.estimated_contribution_minor, data.campaign.currency)} before fixed overheads. ${data.contribution.formula}.`
+        : data.contribution.reason;
+      const adviceTitle = document.createElement('p'); adviceTitle.className = 'copilot-copy';
+      const adviceStrong = document.createElement('strong'); adviceStrong.textContent = 'Demo assistant guidance'; adviceTitle.append(adviceStrong);
+      const advice = document.createElement('ul'); advice.className = 'copilot-list';
+      for (const recommendation of data.recommendations) { const item = document.createElement('li'); item.textContent = recommendation.text; advice.append(item); }
+      const detail = document.createElement('p'); detail.className = 'copilot-copy';
+      detail.textContent = `Assumptions: ${data.assumptions.join(' ')} Limitations: ${data.limitations.join(' ')}`;
+      const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'copilot-apply'; apply.textContent = 'USE CAP IN CAMPAIGN BUILDER';
+      apply.disabled = data.stock.applied_cap < 1;
+      apply.title = apply.disabled ? 'A zero-unit cap cannot be used in a campaign. Add stock or budget first.' : 'Copy this cap to inventory and maximum redemptions.';
+      apply.addEventListener('click', () => {
+        document.getElementById('merchant-inventory').value = data.stock.applied_cap;
+        document.getElementById('merchant-redemptions').value = data.stock.applied_cap;
+        document.getElementById('merchant-campaign-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      result.append(head, metrics, method, economics, adviceTitle, advice, detail, apply); result.hidden = false;
+    }
+    function editMerchantCampaign(campaign) {
+      document.getElementById('merchant-edit-id').value = campaign.offer_id;
+      document.getElementById('builder-heading').textContent = 'Edit campaign';
+      document.getElementById('merchant-title').value = campaign.title;
+      document.getElementById('merchant-description').value = campaign.description;
+      document.getElementById('merchant-vendor').value = campaign.vendor_id;
+      populateMerchantProducts(campaign.eligible_product_ids[0]);
+      document.querySelectorAll('#merchant-events input').forEach(input => { input.checked = campaign.supported_events.includes(input.value); });
+      document.querySelectorAll('#merchant-teams input').forEach(input => { input.checked = campaign.supported_teams.includes(input.value); });
+      document.getElementById('merchant-discount-type').value = campaign.discount_type;
+      document.getElementById('merchant-discount').value = campaign.discount_type === 'fixed_amount' ? campaign.discount_value / 100 : campaign.discount_value;
+      document.getElementById('merchant-start').value = localDateTime(campaign.campaign_start_at);
+      document.getElementById('merchant-end').value = localDateTime(campaign.campaign_end_at);
+      document.getElementById('merchant-claim-window').value = campaign.claim_window_seconds;
+      document.getElementById('merchant-minimum').value = campaign.minimum_basket_minor / 100;
+      document.getElementById('merchant-inventory').value = campaign.quantity_cap ?? '';
+      document.getElementById('merchant-redemptions').value = campaign.max_redemptions;
+      document.getElementById('merchant-campaign-budget').value = campaign.campaign_budget_minor / 100;
+      document.getElementById('merchant-funding').value = campaign.funding_source;
+      document.getElementById('merchant-vendor-share').value = campaign.vendor_funding_percent ?? 50;
+      syncFundingShare();
+      document.getElementById('merchant-fulfilment').value = campaign.fulfilment_mode;
+      document.getElementById('merchant-fulfilment-estimate').value = campaign.fulfilment_estimate;
+      document.querySelector('[data-builder-action="cancel-edit"]').style.display = 'inline-block';
+      showMerchantErrors(null);
+      document.getElementById('merchant-preview').hidden = true;
+      document.getElementById('merchant-campaign-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function resetMerchantForm() {
+      document.getElementById('merchant-edit-id').value = '';
+      document.getElementById('builder-heading').textContent = 'Create campaign';
+      document.getElementById('merchant-campaign-form').reset();
+      setMerchantDefaultDates();
+      populateMerchantProducts();
+      syncFundingShare();
+      document.querySelector('[data-builder-action="cancel-edit"]').style.display = 'none';
+      document.getElementById('merchant-preview').hidden = true;
+      showMerchantErrors(null);
+    }
+    function setMerchantDefaultDates() {
+      const now = Date.now();
+      document.getElementById('merchant-start').value = localDateTime(now - 5 * 60_000);
+      document.getElementById('merchant-end').value = localDateTime(now + 24 * 60 * 60_000);
+    }
+    async function merchantRequest(url, options) {
+      const response = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json' } });
+      const data = await response.json();
+      if (!response.ok) { showMerchantErrors(data.errors || { form: data.error || 'Campaign action failed.' }); throw new Error(data.error || 'Please fix the highlighted campaign rules.'); }
+      showMerchantErrors(null);
+      return data;
+    }
+    async function setMerchantState(offerId, state) {
+      try {
+        await merchantRequest(`/api/merchant/campaigns/${offerId}/state`, { method: 'POST', body: JSON.stringify({ state }) });
+        await Promise.all([loadMerchantDashboard(), loadCatalogue()]);
+      } catch (error) { document.getElementById('merchant-errors').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+    function syncFundingShare() {
+      const input = document.getElementById('merchant-vendor-share');
+      const coFunded = document.getElementById('merchant-funding').value === 'co-funded';
+      input.disabled = !coFunded;
+      input.title = coFunded ? 'Vendor percentage of each discount; the sponsor funds the remainder.' : 'Choose co-funded to configure the vendor share.';
+    }
+    function percent(value) { return value === null ? '—' : `${(value * 100).toFixed(1)}%`; }
+    function analyticsScope() {
+      const selected = document.getElementById('analytics-campaign').value;
+      return selected === 'all' ? merchantAnalytics?.totals : merchantAnalytics?.campaigns.find(item => item.offer_id === selected);
+    }
+    function appendMetric(grid, label, value, definition) {
+      const card = document.createElement('article'); card.className = 'analytics-card';
+      const name = document.createElement('span'); name.textContent = label;
+      const amount = document.createElement('strong'); amount.textContent = value;
+      const note = document.createElement('small'); note.textContent = definition;
+      card.append(name, amount, note); grid.append(card);
+    }
+    function renderMerchantAnalytics() {
+      if (!merchantAnalytics) return;
+      const scope = analyticsScope();
+      if (!scope) return;
+      const grid = document.getElementById('analytics-grid'); grid.replaceChildren();
+      appendMetric(grid, 'Offer impressions', scope.impressions, 'Unique local user + offer + event campaign');
+      appendMetric(grid, 'Coupon claims', scope.claims, 'All saved coupon claims');
+      appendMetric(grid, 'Completed orders', scope.completed_orders, 'Explicitly completed demo orders');
+      appendMetric(grid, 'Redemptions', scope.redemptions, 'Redeemed coupons');
+      appendMetric(grid, 'Gross order value', formatMoney(scope.gross_order_value_minor), 'After discount · completed orders only');
+      appendMetric(grid, 'Average order value', scope.average_order_value_minor === null ? '—' : formatMoney(scope.average_order_value_minor), 'Gross order value ÷ completed orders');
+      appendMetric(grid, 'Claim rate', percent(scope.claim_rate), 'Claims ÷ recorded impressions');
+      appendMetric(grid, 'Redemption rate', percent(scope.redemption_rate), 'Redemptions ÷ all claims');
+      appendMetric(grid, 'Order cancellations', scope.order_cancellations, 'Completed demo orders later cancelled');
+      appendMetric(grid, 'Campaign expiries', scope.campaign_expiries, 'Triggered offer windows that expired');
+      document.getElementById('analytics-empty').hidden = scope.has_activity;
+      const lines = document.getElementById('analytics-lines'); lines.replaceChildren();
+      const values = [
+        ['Total discount on completed orders', formatMoney(scope.discount_amount_minor)],
+        ['Merchant-funded discount', formatMoney(scope.merchant_funded_discount_minor)],
+        ['Sponsor-funded discount', formatMoney(scope.sponsor_funded_discount_minor)],
+        ['Budget consumed', formatMoney(scope.budget_consumed_minor)],
+        ['Budget remaining', formatMoney(scope.budget_remaining_minor)],
+        ['Triggered event campaigns', scope.triggered_events],
+        ['Campaign cancellations', scope.campaign_cancellations],
+        ['Data source', 'Local in-memory records']
+      ];
+      for (const [label, value] of values) { const line = document.createElement('span'); line.textContent = `${label}: `; const bold = document.createElement('b'); bold.textContent = value; line.append(bold); lines.append(line); }
+      renderAnalyticsTransactions();
+      document.getElementById('contribution-result').hidden = true;
+    }
+    function renderAnalyticsTransactions() {
+      const list = document.getElementById('analytics-transactions'); list.replaceChildren();
+      const selected = document.getElementById('analytics-campaign').value;
+      const transactions = (merchantAnalytics.transactions || []).filter(item => selected === 'all' || item.offer_id === selected);
+      if (!transactions.length) { const empty = document.createElement('span'); empty.className = 'audit-empty'; empty.textContent = 'No coupon claims for this scope.'; list.append(empty); return; }
+      for (const claim of transactions) {
+        const row = document.createElement('article'); row.className = 'transaction';
+        const title = document.createElement('strong'); title.textContent = `${claim.coupon_code} · ${formatMoney(claim.final_price_minor, claim.currency)}`;
+        const detail = document.createElement('p'); detail.textContent = `Claim ${claim.status} · order ${claim.order_status.replaceAll('_', ' ')} · coupon ${claim.redemption_status.replaceAll('_', ' ')}`;
+        const actions = document.createElement('div'); actions.className = 'campaign-actions';
+        if (claim.order_status === 'none' && claim.status === 'claimed') actions.append(analyticsAction('COMPLETE DEMO ORDER', claim.claim_id, 'complete_order', 'primary'));
+        if (claim.order_status === 'completed' && claim.redemption_status === 'not_redeemed') {
+          actions.append(analyticsAction('REDEEM COUPON', claim.claim_id, 'redeem', 'primary'));
+          actions.append(analyticsAction('CANCEL ORDER', claim.claim_id, 'cancel_order', 'danger'));
+        }
+        row.append(title, detail, actions); list.append(row);
+      }
+    }
+    function analyticsAction(label, claimId, action, className) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.className = className;
+      button.addEventListener('click', () => updateDemoOrder(claimId, action)); return button;
+    }
+    async function updateDemoOrder(claimId, action) {
+      const box = document.getElementById('contribution-result');
+      try {
+        const response = await fetch(`/api/merchant/claims/${encodeURIComponent(claimId)}/order`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Demo order action failed.');
+        await Promise.all([loadMerchantAnalytics(), loadMerchantDashboard(), loadCatalogue()]);
+        box.textContent = data.duplicate ? 'That demo lifecycle action was already recorded.' : 'Demo transaction updated from the stored claim.';
+        box.hidden = false;
+      } catch (error) { box.textContent = error.message; box.hidden = false; }
+    }
+    async function loadMerchantAnalytics() {
+      try {
+        const response = await fetch('/api/merchant/analytics', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Analytics could not be loaded.');
+        merchantAnalytics = data;
+        const select = document.getElementById('analytics-campaign');
+        const current = select.value || 'all';
+        select.replaceChildren();
+        const all = document.createElement('option'); all.value = 'all'; all.textContent = 'All campaigns'; select.append(all);
+        for (const campaign of data.campaigns) { const option = document.createElement('option'); option.value = campaign.offer_id; option.textContent = campaign.title; select.append(option); }
+        select.value = [...select.options].some(option => option.value === current) ? current : 'all';
+        renderMerchantAnalytics();
+      } catch (error) {
+        const empty = document.getElementById('analytics-empty'); empty.hidden = false; empty.textContent = error.message;
+      }
+    }
+    async function loadCatalogue() {
+      const list = document.getElementById('catalogue-list');
+      try {
+        const response = await fetch('/api/catalogue', { cache: 'no-store' });
+        const catalogue = await response.json();
+        if (!response.ok) throw new Error('Catalogue could not be loaded.');
+        list.replaceChildren();
+        for (const offer of catalogue.offers) {
+          const entry = document.createElement('article');
+          entry.className = 'catalogue-entry';
+          const title = document.createElement('strong');
+          title.textContent = offer.title;
+          const price = document.createElement('b');
+          price.textContent = `${formatMoney(offer.original_price_minor, offer.currency)} → ${formatMoney(offer.final_price_minor, offer.currency)}`;
+          const detail = document.createElement('span');
+          const inventory = offer.inventory_tracked ? ` · tracked demo inventory ${offer.remaining_quantity}/${offer.quantity_cap}` : ' · inventory not tracked';
+          detail.textContent = `${offer.vendor_name} · ${offer.category} · ${offer.fulfilment_mode} · ${offer.fulfilment_estimate}${inventory}`;
+          entry.append(title, price, detail);
+          list.append(entry);
+        }
+      } catch (error) {
+        list.textContent = error.message;
+      }
+    }
+    document.getElementById('merchant-vendor').addEventListener('change', () => populateMerchantProducts());
+    document.getElementById('merchant-funding').addEventListener('change', syncFundingShare);
+    document.getElementById('copilot-campaign').addEventListener('change', syncCopilotCampaignInputs);
+    document.getElementById('copilot-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const submit = event.currentTarget.querySelector('button[type="submit"]');
+      submit.disabled = true; submit.textContent = 'CALCULATING…';
+      try {
+        const response = await fetch('/api/merchant/decision-support', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(copilotPayload())
+        });
+        const data = await response.json();
+        if (!response.ok) { showCopilotErrors(data.errors || { form: data.error || 'Guidance could not be generated.' }); return; }
+        showCopilotErrors(null); renderCopilotGuidance(data);
+      } catch (error) { showCopilotErrors({ form: error.message }); }
+      finally { submit.disabled = false; submit.textContent = 'GENERATE DEMO GUIDANCE'; }
+    });
+    document.getElementById('analytics-campaign').addEventListener('change', renderMerchantAnalytics);
+    document.getElementById('contribution-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const result = document.getElementById('contribution-result');
+      const unitRaw = document.getElementById('analytics-unit-cost').value;
+      const fulfilmentRaw = document.getElementById('analytics-fulfilment-cost').value;
+      const unitCost = unitRaw === '' ? null : Math.round(Number(unitRaw) * 100);
+      const fulfilmentCost = fulfilmentRaw === '' ? null : Math.round(Number(fulfilmentRaw) * 100);
+      try {
+        const response = await fetch('/api/merchant/analytics/estimate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer_id: document.getElementById('analytics-campaign').value, unit_cost_minor: unitCost, fulfilment_cost_minor: fulfilmentCost })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(Object.values(data.errors || { form: data.error || 'Estimate could not be calculated.' }).join(' '));
+        const estimate = data.estimate;
+        result.textContent = `ESTIMATE · ${formatMoney(estimate.estimated_contribution_minor)} · ${estimate.formula}. Inputs: ${formatMoney(estimate.unit_product_cost_minor)} product + ${formatMoney(estimate.unit_fulfilment_cost_minor)} fulfilment per completed order.`;
+      } catch (error) { result.textContent = error.message; }
+      result.hidden = false;
+    });
+    document.querySelector('[data-builder-action="preview"]').addEventListener('click', async () => {
+      try {
+        const data = await merchantRequest('/api/merchant/campaigns/preview', { method: 'POST', body: JSON.stringify(merchantPayload()) });
+        renderMerchantPreview(data.campaign);
+      } catch (error) { document.getElementById('merchant-errors').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+    document.querySelector('[data-builder-action="cancel-edit"]').addEventListener('click', resetMerchantForm);
+    document.getElementById('merchant-campaign-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const editId = document.getElementById('merchant-edit-id').value;
+      const result = document.getElementById('result');
+      try {
+        const data = await merchantRequest(editId ? `/api/merchant/campaigns/${editId}` : '/api/merchant/campaigns', {
+          method: editId ? 'PUT' : 'POST', body: JSON.stringify(merchantPayload())
+        });
+        result.textContent = `${data.campaign.title} saved as ${data.campaign.status}.`;
+        result.dataset.kind = 'success';
+        resetMerchantForm();
+        await Promise.all([loadMerchantDashboard(), loadCatalogue()]);
+      } catch (error) {
+        result.textContent = error.message;
+        result.dataset.kind = 'error';
+        document.getElementById('merchant-errors').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    socket.on('catalogue:state', () => Promise.all([loadMerchantDashboard(), loadMerchantAnalytics(), loadCatalogue()]));
+    socket.on('analytics:state', loadMerchantAnalytics);
+    socket.on('match:state', match => {
+      matchStatus = match.status;
+      pendingPenalty = match.pending_penalty;
+      predictionWindowState = match.prediction?.window_state === 'locked' ? 'locked' : 'open';
+      const simulatorEvents = [...(match.timeline || [])].reverse().filter(event => event.source === 'simulator' && event.type !== 'overturn');
+      const overturnable = simulatorEvents.find(event => event.status === 'confirmed' && ['goal', 'penalty_scored', 'penalty_missed', 'penalty_awarded', 'red_card', 'spotlight'].includes(event.type));
+      const awaiting = simulatorEvents.find(event => ['detected', 'pending_confirmation'].includes(event.status));
+      lastSimulatorEventId = simulatorEvents[0]?.id || null;
+      lastOverturnableEventId = overturnable?.id || null;
+      lastAwaitingEventId = awaiting?.id || null;
+      document.getElementById('score').textContent = match.score.replace('-', ' : ');
+      document.getElementById('clock').textContent = match.minutes + '′ · ' + (match.status === 'LIVE' ? 'LIVE DEMO' : match.status);
+      document.getElementById('match-status').textContent = match.status;
+      document.getElementById('last-event').textContent = match.last_event === 'none' ? 'Waiting for the next moment' : match.last_event;
+      document.getElementById('last-detail').textContent = match.last_event === 'none' ? 'The mock match feed is ready.' : (match.last_event_player ? match.last_event_player + ' · ' : '') + 'At ' + match.last_event_minute + '′ · score ' + match.score;
+      document.getElementById('penalty-resolution').hidden = !pendingPenalty;
+      if (pendingPenalty) document.getElementById('penalty-label').textContent = `Penalty to ${pendingPenalty.team} · ${pendingPenalty.player || 'taker unnamed'}`;
+      renderAudit(match);
+      loadCatalogue();
+      syncButtons();
+    });
+    document.querySelectorAll('[data-sim-type], [data-sim-action]').forEach(button => button.addEventListener('click', async () => {
+      const result = document.getElementById('result');
+      button.disabled = true;
+      result.textContent = 'Running deterministic simulator action…';
+      result.dataset.kind = 'loading';
+      try {
+        let endpoint;
+        let body;
+        if (button.dataset.simType) {
+          endpoint = '/api/simulator/event';
+          body = {
+            event_id: button.dataset.eventId,
+            type: button.dataset.simType,
+            team: button.dataset.team || null,
+            player: button.dataset.player || null,
+            minute: Number(button.dataset.minute),
+            lifecycle_state: button.dataset.lifecycle || 'confirmed'
+          };
+        } else if (button.dataset.simAction === 'advance') {
+          endpoint = '/api/simulator/advance';
+          body = { minutes: 5 };
+        } else if (button.dataset.simAction === 'duplicate') {
+          endpoint = '/api/simulator/duplicate';
+          body = { event_id: lastSimulatorEventId };
+        } else if (button.dataset.simAction === 'confirm') {
+          endpoint = '/api/simulator/confirm';
+          body = { event_id: lastAwaitingEventId };
+        } else if (button.dataset.simAction === 'ignore') {
+          endpoint = '/api/simulator/ignore';
+          body = { event_id: lastAwaitingEventId };
+        } else {
+          endpoint = '/api/simulator/overturn';
+          body = { event_id: lastOverturnableEventId };
+        }
+        const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Simulator action failed');
+        if (button.dataset.simAction === 'advance') result.textContent = `Advanced the simulated clock by ${data.advanced_by} minutes.`;
+        else if (button.dataset.simAction === 'duplicate') result.textContent = `Duplicate ${body.event_id} ignored; score and offers were unchanged.`;
+        else if (button.dataset.simAction === 'overturn') result.textContent = `${body.event_id} overturned; associated active offers were withdrawn.`;
+        else if (button.dataset.simAction === 'confirm') result.textContent = `${body.event_id} confirmed; deterministic campaign rules were evaluated once.`;
+        else if (button.dataset.simAction === 'ignore') result.textContent = `${body.event_id} ignored; no score or campaign change was applied.`;
+        else result.textContent = data.duplicate ? `Duplicate ${body.event_id} ignored.` : `${body.event_id} processed as simulated ${body.type}.`;
+        result.dataset.kind = 'success';
+      } catch (error) {
+        result.textContent = error.message;
+        result.dataset.kind = 'error';
+      } finally {
+        syncButtons();
+      }
+    }));
+    document.querySelectorAll('[data-prediction-state]').forEach(button => button.addEventListener('click', async () => {
+      const result = document.getElementById('result');
+      button.disabled = true;
+      result.textContent = `Setting simulated prediction window to ${button.dataset.predictionState}…`;
+      result.dataset.kind = 'loading';
+      try {
+        const response = await fetch('/api/predictions/window', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: button.dataset.predictionState }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Prediction window update failed');
+        result.textContent = `Simulated prediction window is ${data.prediction.window_state}.`;
+        result.dataset.kind = 'success';
+      } catch (error) {
+        result.textContent = error.message;
+        result.dataset.kind = 'error';
+      } finally {
+        syncButtons();
+      }
+    }));
+    document.querySelectorAll('button[data-event]').forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.classList.add('is-loading');
+      button.setAttribute('aria-busy', 'true');
+      const event = button.dataset.event;
+      const team = event === 'penalty-result' ? pendingPenalty?.team : button.dataset.team;
+      const player = button.dataset.player;
+      const outcome = button.dataset.outcome;
+      const result = document.getElementById('result');
+      result.textContent = 'Sending ' + event + ' event…';
+      result.dataset.kind = 'loading';
+      try {
+        const endpoint = event === 'reset' ? '/api/match/reset' : '/api/events/' + event;
+        const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(team ? { team, ...(player ? { player } : {}), ...(outcome ? { outcome } : {}) } : {}) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Event failed');
+        const routes = (data.deals || []).map(deal => deal.targeted_team + ': ' + deal.mood).join(' · ');
+        result.textContent = event === 'reset' ? 'Match reset. Ready for another moment.' : event === 'penalty' ? 'Penalty awarded. Watch the kick; no offer sent yet.' : 'Processed in ' + data.processing_ms + ' ms · ' + (routes || 'no offer sent');
+        result.dataset.kind = 'success';
+      } catch (error) {
+        result.textContent = error.message;
+        result.dataset.kind = 'error';
+      } finally {
+        button.classList.remove('is-loading');
+        button.removeAttribute('aria-busy');
+        syncButtons();
+      }
+    }));
+    setMerchantDefaultDates();
+    syncFundingShare();
+    loadMerchantDashboard();
+    loadMerchantAnalytics();
+    loadCatalogue();
+  </script>
+</body>
+</html>
