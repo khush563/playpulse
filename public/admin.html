@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PlayPulse — merchant control</title>
   <link rel="stylesheet" href="/shared.css">
+  <link rel="stylesheet" href="/match-pool.css">
   <style>
     :root { background: var(--pp-canvas); color: var(--pp-ink); }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
@@ -41,6 +42,11 @@
     .control.spotlight .icon { background: #f9e9b9; }
     .control strong { display: block; font-size: 12px; }
     .control small { display: block; margin-top: 3px; color: #8b978e; font-size: 10px; }
+    .trigger-feedback { margin: 0 0 14px; padding: 14px 16px; border: 1px solid #ceddca; border-radius: 14px; background: #edf5e7; }
+    .trigger-feedback > strong { display: block; color: #19452d; font-size: 17px; letter-spacing: -.3px; }
+    .trigger-feedback > span { display: block; margin-top: 5px; color: #526d58; font-size: 11px; line-height: 1.5; }
+    .trigger-feedback .status { margin: 8px 0 0; min-height: 0; font-size: 12px; }
+    .trigger-feedback .status:empty { display: none; }
     .controls-note { margin: 10px 2px 0; color: #77877d; font-size: 10px; line-height: 1.45; }
     .pending-panel { margin-top: 14px; padding: 17px; border: 1px solid #ecd9a8; border-radius: 16px; background: #fff8e8; }
     .pending-panel strong { display: block; font-size: 13px; }
@@ -176,6 +182,7 @@
     .activity-card small { display: block; margin-top: 5px; color: #839187; font-size: 11px; line-height: 1.4; }
     .status { margin: 11px 1px 0; font-size: 11px; font-weight: 750; }
     @media (max-width: 560px) { body { padding: 0; } .shell { min-height: 100vh; border-radius: 0; } .hero, .body { padding-left: 21px; padding-right: 21px; } .control-grid, .merchant-form, .estimate-form, .copilot-form { grid-template-columns: 1fr; } .field.full, .copilot-form button, .copilot-note { grid-column: auto; } .merchant-metrics, .analytics-grid { grid-template-columns: repeat(2, 1fr); } .copilot-metrics { grid-template-columns: 1fr; } }
+    .field[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -213,6 +220,7 @@
               <label class="field"><span>Starts at</span><input id="merchant-start" type="datetime-local" required></label>
               <label class="field"><span>Ends at</span><input id="merchant-end" type="datetime-local" required></label>
               <label class="field"><span>Claim window · seconds</span><input id="merchant-claim-window" type="number" min="30" max="86400" value="300" required></label>
+              <label class="field" id="merchant-redemption-field" hidden><span>Food/café coupon use after full time</span><select id="merchant-redemption-grace"><option value="0">Match only · expires at full time</option><option value="1800">Up to 30 minutes after full time</option><option value="3600">Up to 1 hour after full time</option><option value="7200" selected>Up to 2 hours after full time</option></select></label>
               <label class="field"><span>Minimum basket · £</span><input id="merchant-minimum" type="number" min="0" step="0.01" value="0" required></label>
               <label class="field"><span>Inventory cap</span><input id="merchant-inventory" type="number" min="1" step="1" value="20" placeholder="Blank = untracked"></label>
               <label class="field"><span>Maximum redemptions</span><input id="merchant-redemptions" type="number" min="1" step="1" value="20" required></label>
@@ -267,7 +275,12 @@
         <div class="form-errors" id="copilot-errors" role="alert" hidden></div>
         <article class="copilot-result" id="copilot-result" hidden aria-live="polite"></article>
       </section>
-      <div class="section-head"><h2>Simulated triggers</h2><span>Choose an event</span></div>
+      <div class="section-head"><h2>Simulated triggers</h2><span>Click to trigger immediately</span></div>
+      <div class="trigger-feedback" id="trigger-feedback">
+        <strong id="trigger-score">Loading match…</strong>
+        <span id="trigger-last-event">Choose a Goal or Penalty button below to record a match moment.</span>
+        <p class="status pp-status-line" id="result" data-kind="idle" role="status" aria-live="polite"></p>
+      </div>
       <div class="control-grid">
         <button class="control" type="button" data-event="goal" data-team="Arsenal" data-player="Bukayo Saka"><span class="icon">⚽</span><span><strong>Goal · Arsenal</strong><small>Bukayo Saka scores</small></span></button>
         <button class="control chelsea" type="button" data-event="goal" data-team="Chelsea" data-player="Cole Palmer"><span class="icon">⚽</span><span><strong>Goal · Chelsea</strong><small>Cole Palmer scores</small></span></button>
@@ -298,10 +311,12 @@
       <section class="audit-panel" aria-labelledby="audit-heading"><h2 id="audit-heading">State machine audit</h2><p>Local event and campaign transitions explain exactly why an offer activated, paused, expired, or was cancelled.</p><div class="audit-list" id="audit-list"><span class="audit-empty">No transitions yet.</span></div></section>
       <section class="audit-panel" aria-labelledby="catalogue-heading"><h2 id="catalogue-heading">Seeded offer catalogue</h2><p>These local demo vendors and quantities power eligibility and reservations. Untracked offers never show a made-up remaining count.</p><div class="catalogue-list" id="catalogue-list"><span class="audit-empty">Loading local catalogue…</span></div></section>
       <section class="prediction-admin" aria-labelledby="prediction-control-heading"><h2 id="prediction-control-heading">Simulated prediction window</h2><p>No kickoff time is seeded, so use this explicit switch to demonstrate edits before lock and the locked state.</p><div class="prediction-window-actions"><button type="button" data-prediction-state="open" aria-pressed="true">OPEN WINDOW</button><button type="button" data-prediction-state="locked" aria-pressed="false">LOCK WINDOW</button></div></section>
-      <div class="activity"><div class="section-head"><h2>Latest moment</h2><span id="match-status">LIVE</span></div><div class="activity-card"><strong id="last-event">Waiting for the next moment</strong><small id="last-detail">The mock match feed is ready.</small></div><p class="status pp-status-line" id="result" data-kind="idle" role="status" aria-live="polite"></p></div>
+      <div class="activity"><div class="section-head"><h2>Latest moment</h2><span id="match-status">LIVE</span></div><div class="activity-card"><strong id="last-event">Waiting for the next moment</strong><small id="last-detail">The mock match feed is ready.</small></div></div>
     </section>
   </main>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/pool-admin.js" defer></script>
+  <script src="/coupon-timing.js"></script>
   <script>
     const socket = io();
     let matchStatus = 'LIVE';
@@ -312,14 +327,16 @@
     let lastAwaitingEventId = null;
     let merchantDashboard = null;
     let merchantAnalytics = null;
+    let couponExpiryRefresh = null;
+    let latestAuditMatch = null;
     let copilotGuidance = null;
     function syncButtons() {
       const terminal = ['FT', 'POSTPONED', 'SUSPENDED'].includes(matchStatus);
       const reason = terminal
         ? `The simulated match is ${matchStatus}. Reset it to enable event triggers.`
         : pendingPenalty
-          ? `Resolve the pending ${pendingPenalty.team} penalty before sending another event.`
-          : 'All simulated triggers are available.';
+          ? `Penalty to ${pendingPenalty.team} is awaiting a result. Choose SCORED or MISSED below to enable other triggers.`
+          : 'Click once to record an event immediately. The fan app updates automatically.';
       document.querySelectorAll('button[data-event]').forEach(button => {
         const event = button.dataset.event;
         button.disabled = event === 'reset' ? false : event === 'penalty-result'
@@ -355,6 +372,7 @@
       ignore.title = lastAwaitingEventId ? `Ignore ${lastAwaitingEventId}` : 'Detect an event awaiting confirmation first.';
     }
     function renderAudit(match) {
+      latestAuditMatch = match;
       const list = document.getElementById('audit-list');
       list.replaceChildren();
       const records = [];
@@ -363,9 +381,9 @@
       }
       for (const campaign of match.campaigns || []) {
         for (const step of campaign.state_history || []) records.push({ at: step.at, title: `CAMPAIGN · ${campaign.campaign_id}`, state: step.to, reason: step.reason });
-        for (const claim of campaign.claims || []) {
-          for (const step of claim.status_history || []) records.push({ at: step.at, title: `CLAIM · ${claim.claim_id}`, state: step.to, reason: step.reason });
-        }
+      }
+      for (const claim of merchantAnalytics?.transactions || []) {
+        for (const step of claim.status_history || []) records.push({ at: step.at, title: `CLAIM · ${claim.claim_id}`, state: step.to, reason: step.reason });
       }
       if (!records.length) {
         const empty = document.createElement('span');
@@ -421,6 +439,7 @@
         discount_value: discountType === 'fixed_amount' ? Math.round(discount * 100) : discount,
         minimum_basket_minor: Math.round(Number(document.getElementById('merchant-minimum').value) * 100),
         claim_window_seconds: Number(document.getElementById('merchant-claim-window').value),
+        redemption_grace_seconds: Number(document.getElementById('merchant-redemption-grace').value),
         quantity_cap: inventoryRaw === '' ? null : Number(inventoryRaw),
         campaign_budget_minor: Math.round(Number(document.getElementById('merchant-campaign-budget').value) * 100),
         max_redemptions: Number(document.getElementById('merchant-redemptions').value),
@@ -452,7 +471,7 @@
       const title = document.createElement('h3');
       title.textContent = campaign.title;
       const copy = document.createElement('p');
-      copy.textContent = `${campaign.description} Claim within ${campaign.claim_window_seconds} seconds; ${campaign.fulfilment_estimate}.`;
+      copy.textContent = `${campaign.description} Claim within ${campaign.claim_window_seconds} seconds; ${window.PlayPulseCouponTiming.policyLabel(campaign)}. ${campaign.fulfilment_estimate}.`;
       const price = document.createElement('div');
       price.className = 'preview-price';
       price.textContent = `${formatMoney(campaign.original_price_minor)} → ${formatMoney(campaign.final_price_minor)} · ${campaign.supported_events.join(', ').replaceAll('_', ' ')}`;
@@ -517,7 +536,13 @@
         option.selected = product.product_id === selectedId;
         select.append(option);
       }
+      syncMerchantCouponTiming();
     }
+    function syncMerchantCouponTiming() {
+      const product = merchantDashboard?.products.find(item => item.product_id === document.getElementById('merchant-product').value);
+      document.getElementById('merchant-redemption-field').hidden = !(product?.category === 'food' || product?.matchday_redemption);
+    }
+    document.getElementById('merchant-product').addEventListener('change', syncMerchantCouponTiming);
     async function loadMerchantDashboard() {
       try {
         const response = await fetch('/api/merchant/dashboard', { cache: 'no-store' });
@@ -640,6 +665,12 @@
       document.getElementById('merchant-start').value = localDateTime(campaign.campaign_start_at);
       document.getElementById('merchant-end').value = localDateTime(campaign.campaign_end_at);
       document.getElementById('merchant-claim-window').value = campaign.claim_window_seconds;
+      const grace = document.getElementById('merchant-redemption-grace');
+      const seconds = String(campaign.redemption_grace_seconds ?? 7200);
+      if (![...grace.options].some(option => option.value === seconds)) {
+        const option = document.createElement('option'); option.value = seconds; option.textContent = `Up to ${window.PlayPulseCouponTiming.duration(Number(seconds))} after full time`; grace.append(option);
+      }
+      grace.value = seconds;
       document.getElementById('merchant-minimum').value = campaign.minimum_basket_minor / 100;
       document.getElementById('merchant-inventory').value = campaign.quantity_cap ?? '';
       document.getElementById('merchant-redemptions').value = campaign.max_redemptions;
@@ -733,6 +764,7 @@
       document.getElementById('contribution-result').hidden = true;
     }
     function renderAnalyticsTransactions() {
+      clearTimeout(couponExpiryRefresh);
       const list = document.getElementById('analytics-transactions'); list.replaceChildren();
       const selected = document.getElementById('analytics-campaign').value;
       const transactions = (merchantAnalytics.transactions || []).filter(item => selected === 'all' || item.offer_id === selected);
@@ -740,15 +772,19 @@
       for (const claim of transactions) {
         const row = document.createElement('article'); row.className = 'transaction';
         const title = document.createElement('strong'); title.textContent = `${claim.coupon_code} · ${formatMoney(claim.final_price_minor, claim.currency)}`;
-        const detail = document.createElement('p'); detail.textContent = `Claim ${claim.status} · order ${claim.order_status.replaceAll('_', ' ')} · coupon ${claim.redemption_status.replaceAll('_', ' ')}`;
+        const available = claim.coupon_status === 'available' && !window.PlayPulseCouponTiming.isExpired(claim);
+        const couponState = claim.coupon_status === 'available' && !available ? 'expired' : claim.coupon_status;
+        const detail = document.createElement('p'); detail.textContent = `Claim ${claim.status} · order ${claim.order_status.replaceAll('_', ' ')} · coupon ${couponState.replaceAll('_', ' ')} · ${window.PlayPulseCouponTiming.deadlineLabel(claim)}`;
         const actions = document.createElement('div'); actions.className = 'campaign-actions';
-        if (claim.order_status === 'none' && claim.status === 'claimed') actions.append(analyticsAction('COMPLETE DEMO ORDER', claim.claim_id, 'complete_order', 'primary'));
+        if (claim.order_status === 'none' && available) actions.append(analyticsAction('COMPLETE DEMO ORDER', claim.claim_id, 'complete_order', 'primary'));
         if (claim.order_status === 'completed' && claim.redemption_status === 'not_redeemed') {
-          actions.append(analyticsAction('REDEEM COUPON', claim.claim_id, 'redeem', 'primary'));
+          if (available) actions.append(analyticsAction('REDEEM COUPON', claim.claim_id, 'redeem', 'primary'));
           actions.append(analyticsAction('CANCEL ORDER', claim.claim_id, 'cancel_order', 'danger'));
         }
         row.append(title, detail, actions); list.append(row);
       }
+      const futureDeadlines = transactions.filter(claim => claim.coupon_status === 'available' && claim.fulfilment_expires_at > Date.now()).map(claim => claim.fulfilment_expires_at);
+      if (futureDeadlines.length) couponExpiryRefresh = setTimeout(renderAnalyticsTransactions, Math.min(2_147_483_647, Math.max(1, Math.min(...futureDeadlines) - Date.now())));
     }
     function analyticsAction(label, claimId, action, className) {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.className = className;
@@ -771,6 +807,7 @@
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Analytics could not be loaded.');
         merchantAnalytics = data;
+        if (latestAuditMatch) renderAudit(latestAuditMatch);
         const select = document.getElementById('analytics-campaign');
         const current = select.value || 'all';
         select.replaceChildren();
@@ -881,6 +918,8 @@
       lastOverturnableEventId = overturnable?.id || null;
       lastAwaitingEventId = awaiting?.id || null;
       document.getElementById('score').textContent = match.score.replace('-', ' : ');
+      document.getElementById('trigger-score').textContent = `${match.home_team} ${match.score.replace('-', ' – ')} ${match.away_team}`;
+      document.getElementById('trigger-last-event').textContent = `${match.minutes}′ · ${match.status === 'LIVE' ? 'Live demo' : match.status} · ${match.last_event === 'none' ? 'Waiting for the next moment' : match.last_event}`;
       document.getElementById('clock').textContent = match.minutes + '′ · ' + (match.status === 'LIVE' ? 'LIVE DEMO' : match.status);
       document.getElementById('match-status').textContent = match.status;
       document.getElementById('last-event').textContent = match.last_event === 'none' ? 'Waiting for the next moment' : match.last_event;
@@ -976,8 +1015,13 @@
         const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(team ? { team, ...(player ? { player } : {}), ...(outcome ? { outcome } : {}) } : {}) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Event failed');
-        const routes = (data.deals || []).map(deal => deal.targeted_team + ': ' + deal.mood).join(' · ');
-        result.textContent = event === 'reset' ? 'Match reset. Ready for another moment.' : event === 'penalty' ? 'Penalty awarded. Watch the kick; no offer sent yet.' : 'Processed in ' + data.processing_ms + ' ms · ' + (routes || 'no offer sent');
+        const byTeam = new Map();
+        for (const deal of data.deals || []) byTeam.set(deal.targeted_team, (byTeam.get(deal.targeted_team) || 0) + 1);
+        const offers = [...byTeam].map(([name, count]) => `${count} offer${count === 1 ? '' : 's'} unlocked for ${name}`).join(' · ');
+        const recorded = event === 'goal' ? `Goal for ${team}` : event === 'penalty-result' ? `Penalty ${outcome} by ${team}` : event === 'full-time' ? 'Full time' : `${player || team} spotlight`;
+        result.textContent = event === 'reset' ? 'Match reset. Ready for another moment.'
+          : event === 'penalty' ? `Penalty awarded to ${team}. Choose SCORED or MISSED below; new offers wait for the result.`
+          : `${recorded} recorded. ${data.match.home_team} ${data.match.score.replace('-', '–')} ${data.match.away_team}. ${offers || 'No new eligible offers for this moment.'}`;
         result.dataset.kind = 'success';
       } catch (error) {
         result.textContent = error.message;
@@ -986,6 +1030,8 @@
         button.classList.remove('is-loading');
         button.removeAttribute('aria-busy');
         syncButtons();
+        const feedback = event === 'penalty' && pendingPenalty ? document.getElementById('penalty-resolution') : document.getElementById('trigger-feedback');
+        feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }));
     setMerchantDefaultDates();

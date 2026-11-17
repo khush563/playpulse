@@ -1,0 +1,20 @@
+body { margin: 0; background: #f7f7ef; color: #153e2c; font-family: Arial, sans-serif; }
+.invitation-shell { max-width: 760px; margin: auto; padding: 28px 24px 45px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 26px; border-bottom: 1px solid #d5ddcf; }
+.brand { font-size: 26px; font-weight: 900; letter-spacing: -1.3px; }
+button { cursor: pointer; font: inherit; }
+header button, .inbox button { border: 1px solid #bfcdbb; padding: 10px 15px; border-radius: 25px; background: transparent; color: #234d35; font-size: 12px; font-weight: 700; }
+.invitation-intro { padding: 38px 0 24px; }
+.eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.8px; color: #718255; }
+h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.08; letter-spacing: -2px; margin: 17px 0; }
+h1 em { color: #7b8f43; font-style: normal; }
+#welcome, .inbox p:not(.eyebrow), footer { font-size: 13px; line-height: 1.7; color: #65755f; }
+.fixture { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 25px 22px; border-radius: 16px; background: #163e2c; color: #eff5dc; font-size: clamp(14px, 3vw, 20px); font-weight: 900; letter-spacing: 1px; }
+.versus { font-size: 11px; color: #b7cd83; }
+.inbox { margin-top: 30px; padding-top: 17px; border-top: 1px solid #d5ddcf; }
+h2 { font-size: 21px; letter-spacing: -.6px; }
+.session-message { font-size: 12px; color: #8b4230; }
+footer { margin-top: 35px; font-size: 11px; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid #9fba59; outline-offset: 4px; }
+button:disabled { opacity: .65; cursor: wait; }
+@media (max-width: 440px) { .invitation-shell { padding: 22px 18px 30px; } .invitation-intro { padding-top: 28px; } }

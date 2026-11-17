@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayPulse — matchday invitations</title>
+  <link rel="stylesheet" href="/shared.css"><link rel="stylesheet" href="/match-pool.css"><link rel="stylesheet" href="/invitations.css">
+</head>
+<body>
+  <main class="invitation-shell">
+    <header><span class="brand">↗ playpulse.</span><button id="sign-out" type="button">Sign out</button></header>
+    <section class="invitation-intro">
+      <p class="eyebrow">YOUR MATCHDAY INBOX</p>
+      <h1>A place in the crowd.<br><em>A moment to claim.</em></h1>
+      <p id="welcome">Loading your account…</p>
+    </section>
+    <section class="fixture" aria-label="Match invitation"><span>ARSENAL</span><span class="versus">VS</span><span>CHELSEA</span></section>
+    <section data-match-pool aria-label="Match pool registration" aria-live="polite"></section>
+    <section class="inbox" aria-labelledby="inbox-title"><p class="eyebrow">STAY IN THE LOOP</p><h2 id="inbox-title">Your invitations & updates</h2><p id="invitation-notice" role="status">Checking the next registration window…</p><button id="refresh" type="button">Refresh invitations ↻</button></section>
+    <p class="session-message" id="session-message" role="status"></p>
+    <footer>Join during registration to unlock the match lobby, live updates and eligible offers. Your side stays locked for that match.<br><br>Development preview · simulated football and demo merchants. Invitations update while this page is open.</footer>
+  </main>
+  <script src="/socket.io/socket.io.js"></script><script src="/account.js"></script><script src="/match-pool.js"></script><script src="/invitations.js"></script>
+</body>
+</html>
