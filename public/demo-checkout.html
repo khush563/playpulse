@@ -20,28 +20,36 @@
     a { display: block; padding: 15px 18px; border-radius: 15px; background: #c7ff5c; color: #101710; text-align: center; text-decoration: none; font-weight: 950; }
     a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     .note { font-size: 12px; }
+    button { width: 100%; margin: 0 0 12px; padding: 12px; border: 1px solid #59665c; border-radius: 15px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #claim-status { color: #c7ff5c; font-weight: 800; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
     <div class="mark" aria-hidden="true">✓</div>
     <p class="eyebrow">LOCAL DEMO CONFIRMATION</p>
-    <h1>Your offer is claimed.</h1>
-    <p>This page simulates the retailer handoff. No order, payment, delivery, or vendor request has been created.</p>
-    <dl>
+    <h1 id="claim-heading">Checking your claim…</h1>
+    <p>No order, payment, delivery, or vendor request has been created. This coupon can only be verified inside the local PlayPulse demo.</p>
+    <p id="claim-status" role="status">Loading your saved claim…</p>
+    <dl id="claim-details" hidden>
       <div><dt>Offer</dt><dd id="offer">PlayPulse demo offer</dd></div>
+      <div><dt>Demo vendor</dt><dd id="vendor"></dd></div>
       <div><dt>Demo coupon</dt><dd id="coupon">Saved in this local session</dd></div>
+      <div><dt>Use coupon before</dt><dd><time id="use-by"></time></dd></div>
+      <div><dt>Claimed at</dt><dd><time id="claimed-at"></time></dd></div>
       <div><dt>Claim reference</dt><dd id="claim">Local claim</dd></div>
     </dl>
-    <a href="/">RETURN TO PLAYPULSE</a>
-    <p class="note">All match, campaign, inventory, and transaction data remains inside the local prototype.</p>
+    <p class="note" id="coupon-validity"></p>
+    <button id="refresh-claim" type="button">REFRESH CLAIM STATUS</button>
+    <a href="/?view=wallet">RETURN TO WALLET</a>
+    <p class="note">Open this coupon again from Wallet or its claim notification while signed in to the same account. Demo claims are cleared when the server restarts or the match is reset.</p>
   </main>
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const safeText = (id, key, fallback) => { document.getElementById(id).textContent = params.get(key) || fallback; };
-    safeText('offer', 'offer', 'PlayPulse demo offer');
-    safeText('coupon', 'coupon', 'Saved in this local session');
-    safeText('claim', 'claim', 'Local claim');
-  </script>
+  <script src="/predictions.js"></script>
+  <script src="/account.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/coupon-timing.js"></script>
+  <script src="/claim-confirmation.js"></script>
 </body>
 </html>

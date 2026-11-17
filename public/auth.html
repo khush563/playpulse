@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlayPulse — your matchday starts here</title>
+  <link rel="stylesheet" href="/shared.css"><link rel="stylesheet" href="/auth.css">
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-story">
+      <span class="auth-brand"><span>↗</span> playpulse.</span>
+      <div class="auth-pitch"><p class="auth-kicker">YOUR CLUB. YOUR MOMENTS.</p><h1>Be there<br> before the<br> <em>first whistle.</em></h1><p>Join a matchday offer pool. Pick your side. Discover what the next football moment unlocks.</p></div>
+      <div class="auth-ticket"><span>01 · JOIN THE POOL</span><span>02 · LOCK YOUR SIDE</span><span>03 · CLAIM THE MOMENT</span></div>
+      <p class="auth-demo">PlayPulse development preview · simulated matches and demo offers.</p>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-tabs" role="tablist" aria-label="Account action"><button id="tab-login" role="tab" type="button" aria-selected="true">Sign in</button><button id="tab-signup" role="tab" type="button" aria-selected="false">Create account</button></div>
+      <p class="auth-kicker">WELCOME TO PLAYPULSE</p><h2 id="auth-title">Back for matchday?</h2><p id="auth-copy">Sign in to join offer pools and access your wallet.</p>
+      <div class="auth-message" id="auth-message" role="status" hidden></div>
+      <form id="auth-form">
+        <label id="name-field" hidden>Your name<input id="auth-name" type="text" autocomplete="name" maxlength="80"></label>
+        <label id="email-field">Email address<input id="auth-email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label>
+        <label id="password-field">Password<input id="auth-password" type="password" autocomplete="current-password" required maxlength="128"></label>
+        <p id="password-hint" hidden>Use at least 12 characters.</p>
+        <button class="auth-primary" id="auth-submit" type="submit">Sign in →</button>
+      </form>
+      <button class="auth-forgot" id="auth-forgot" type="button">Forgot your password?</button>
+      <a class="auth-google" id="auth-google" href="/api/auth/google" hidden>Continue with Google</a>
+      <p class="auth-footnote">An account is open to everyone. Each match has a separate registration window. Joining a pool does not guarantee a coupon.</p>
+    </section>
+  </main>
+  <script src="/auth.js"></script>
+</body>
+</html>

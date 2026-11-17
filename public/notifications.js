@@ -5,7 +5,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function createNotificationApi() {
   const DATA_KEY = 'playpulse-notifications-v1';
   const TYPES = Object.freeze(['event', 'offer', 'claim', 'expiry', 'order']);
-  const TARGETS = Object.freeze(['match', 'offer', 'order', 'profile']);
+  const TARGETS = Object.freeze(['match', 'offer', 'order', 'profile', 'lobby']);
   const DEFAULT_PREFERENCES = Object.freeze({ eventAlerts: true, offerAlerts: true, quietMode: false });
 
   function emptyData() {

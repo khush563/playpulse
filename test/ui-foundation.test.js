@@ -151,11 +151,11 @@ test('demo claim handoff remains local and explains that no real order is create
   const checkout = fs.readFileSync(path.join(root, 'public', 'demo-checkout.html'), 'utf8');
   assert.match(checkout, /LOCAL DEMO CONFIRMATION/);
   assert.match(checkout, /No order, payment, delivery, or vendor request has been created/);
-  assert.match(checkout, /href="\/"/);
+  assert.match(checkout, /href="\/\?view=wallet"/);
 });
 
 test('persistent browser history distinguishes new events and campaigns after a demo reset', () => {
   assert.match(fan, /event:\$\{event\.id\}:\$\{event\.detected_at\}:confirmed/);
   assert.match(fan, /const campaignKey = campaign =>/);
-  assert.match(fan, /claim:\$\{data\.claim\.claim_id\}:\$\{data\.claim\.claimed_at\}/);
+  assert.match(fan, /claim:\$\{claim\.claim_id\}:\$\{claim\.claimed_at\}/);
 });

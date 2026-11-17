@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#102d29">
   <title>PlayPulse — matchday, your way</title>
   <link rel="stylesheet" href="/shared.css">
+  <link rel="stylesheet" href="/commerce.css">
+  <link rel="stylesheet" href="/match-pool.css">
   <style>
     :root {
       color: var(--pp-ink);
@@ -261,7 +263,7 @@
     .watch-actions button.secondary { border: 1px solid #d6dfd3; background: #fff; color: #395746; }
     .watch-actions button.danger { border: 1px solid #eccfd3; background: #fff; color: #963b48; }
     .watch-status { margin-top: 9px; color: #637269; font-size: 8px; line-height: 1.45; }
-    .bottom-nav { flex-shrink: 0; display: grid; grid-template-columns: repeat(4, 1fr); min-height: 70px; padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: #fff; }
+    .bottom-nav { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, 1fr); min-height: 70px; padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--line); background: #fff; }
     .bottom-nav button { position: relative; display: grid; place-content: center; justify-items: center; gap: 4px; border: 0; background: transparent; color: #9aa69d; font-size: 10px; font-weight: 850; }
     .bottom-nav button span { font-size: 19px; line-height: 1; }
     .bottom-nav button.active { color: #d52f43; }
@@ -329,16 +331,16 @@
   <main class="phone">
     <header class="app-header">
       <div class="pp-brand"><span class="pp-brand-mark" aria-hidden="true">↗</span> playpulse.</div>
-      <div class="header-right"><a class="pp-context-link" href="/admin">MERCHANT</a><span class="demo-tag">LOCAL DEMO</span><span class="feed-light" id="feed-light" aria-label="Connecting to simulated feed">●</span></div>
+      <div class="header-right"><a class="pp-context-link" href="/admin">MERCHANT</a><a class="pp-context-link" id="account-action" href="/auth">SIGN IN</a><span class="demo-tag">LOCAL DEMO</span><span class="feed-light" id="feed-light" aria-label="Connecting to simulated feed">●</span></div>
     </header>
 
     <div class="content" id="content">
       <section class="view" id="onboarding-view" hidden>
-        <div class="other-head"><div class="card-kicker">WELCOME TO PLAYPULSE</div><h1>Set your matchday.</h1><p>Choose what matters to you. Everything stays in this browser and can be changed later.</p></div>
+        <div class="other-head"><div class="card-kicker">WELCOME TO PLAYPULSE</div><h1>Set your matchday.</h1><p>Choose your side. Your team locks when you join its match pool; offer preferences can be changed later.</p></div>
         <form class="preference-form" id="preference-form" novalidate>
           <fieldset class="preference-step">
             <legend>1 · Your club</legend>
-            <p>Choose one team participating in this local Arsenal–Chelsea demo.</p>
+            <p id="team-lock-note">Choose Arsenal or Chelsea to preview its offers. Joining the match pool will lock your side for this match.</p>
             <div class="choice-grid">
               <label class="choice-card"><input type="radio" name="favorite-club" value="Arsenal" required><span class="badge arsenal" aria-hidden="true">A</span><span>Arsenal</span></label>
               <label class="choice-card"><input type="radio" name="favorite-club" value="Chelsea" required><span class="badge chelsea" aria-hidden="true">C</span><span>Chelsea</span></label>
@@ -371,7 +373,7 @@
       </section>
 
       <section class="view" id="lobby-view" hidden>
-        <div class="other-head"><div class="card-kicker">MATCH LOBBY</div><h1>Your match is ready.</h1><p>Review the local demo fixture, then join when you are ready.</p></div>
+        <div class="other-head"><div class="card-kicker">MATCH LOBBY</div><h1>Your match is ready.</h1><p>Your pool place is confirmed. Open the simulated match when you are ready.</p></div>
         <div class="lobby-loading" id="lobby-loading" role="status">Loading the local fixture…</div>
         <div class="lobby-empty" id="lobby-empty" hidden><strong>No demo match is available.</strong><br>Return later or edit your preferences.</div>
         <section class="lobby-card" id="lobby-card" hidden aria-label="Match lobby fixture">
@@ -379,6 +381,7 @@
           <div class="lobby-teams"><div class="lobby-team"><span class="badge arsenal" aria-hidden="true">A</span><span id="lobby-home">Arsenal</span></div><span class="lobby-versus">VS</span><div class="lobby-team"><span class="badge chelsea" aria-hidden="true">C</span><span id="lobby-away">Chelsea</span></div></div>
           <div class="lobby-detail"><span id="lobby-time">Kickoff time unavailable · local demo</span><strong class="lobby-countdown" id="lobby-countdown" hidden></strong></div>
         </section>
+        <section data-match-pool aria-label="Match offer pool"></section>
         <div class="preference-summary" id="preference-summary" hidden><strong id="summary-club">Following Arsenal</strong><span id="summary-details"></span></div>
         <section class="prediction-card" id="prediction-card" aria-labelledby="prediction-heading">
           <div class="prediction-head"><div><div class="card-kicker">FREE MATCH PICK</div><h2 id="prediction-heading">Call the final result.</h2></div><span class="prediction-state" id="prediction-window-state">SIMULATED · OPEN</span></div>
@@ -401,9 +404,9 @@
           <div class="prediction-summary" id="prediction-summary" hidden><strong id="prediction-pick"></strong><span id="prediction-detail"></span><button class="small-action" id="prediction-edit" type="button">EDIT PREDICTION</button></div>
           <div class="prediction-success" id="prediction-success" role="status" aria-live="polite" hidden></div>
           <div class="reward-badge" id="prediction-reward" hidden><span aria-hidden="true">✦</span><span><b id="reward-title">PLAYPULSE EARLY BIRD</b><small id="reward-copy">Demo badge claimed for this local user.</small></span></div>
-          <p class="prediction-rules" id="prediction-rules">One prediction and one reward claim per local browser ID for this match. Edits are allowed until the demo window locks. The first 5,000 eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Everyone can still use ordinary eligible offers if the cap is reached. No payment or cash prize.</p>
+          <p class="prediction-rules" id="prediction-rules">One reward claim per account for this match; predictions are saved in this browser. Edits are allowed until the demo window locks. The first 5,000 eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Pool registration is separate and required to claim match offers. No payment or cash prize.</p>
         </section>
-        <div class="lobby-actions"><button class="primary-action" id="join-match" type="button" disabled>JOIN MATCH</button><button class="secondary-action" type="button" data-edit-preferences>EDIT PREFERENCES</button></div>
+        <div class="lobby-actions"><button class="primary-action" id="join-match" type="button" disabled>VIEW MATCH</button><button class="secondary-action" type="button" data-edit-preferences>EDIT PREFERENCES</button></div>
       </section>
 
       <section class="view" id="match-view">
@@ -426,8 +429,21 @@
         </section>
 
         <section class="browse-card" id="browse-card" hidden><div><strong>Browsing the match</strong><p>Scores and moments are yours. Follow a club when you want tailored offers.</p></div><button class="small-action" type="button" data-go="teams">FOLLOW</button></section>
-        <section class="following-card" id="following-card" hidden><span class="mini-badge" id="mini-badge">A</span><div class="following-copy"><strong id="following-title">Following Arsenal</strong><p id="following-status">Your side is level</p></div><button class="small-action" type="button" data-go="teams">CHANGE</button></section>
+        <section class="following-card" id="following-card" hidden><span class="mini-badge" id="mini-badge">A</span><div class="following-copy"><strong id="following-title">Following Arsenal</strong><p id="following-status">Your side is level</p></div><button class="small-action" id="lock-team" type="button">LOCK TEAM</button></section>
+        <section data-match-pool aria-label="Match offer pool"></section>
         <section class="alert-tease" id="alert-tease" hidden><span class="icon" aria-hidden="true">🔔</span><div><strong>Your matchday inbox</strong><small>Review in-app match and offer updates.</small></div><button type="button" data-go="alerts" aria-label="Open in-app notification centre">→</button></section>
+
+        <section id="offer-collection" aria-labelledby="offers-heading">
+          <div class="collection-header"><h2 id="offers-heading">Moment offers</h2><span id="offers-count">0 offers · 0 merchants</span></div>
+          <div class="commerce-filters" aria-label="Offer categories">
+            <button type="button" data-offer-category="all" aria-pressed="true">All offers</button>
+            <button type="button" data-offer-category="food" aria-pressed="false">Food</button>
+            <button type="button" data-offer-category="merchandise" aria-pressed="false">Jerseys &amp; merch</button>
+            <button type="button" data-offer-category="experiences" aria-pressed="false">Experiences</button>
+          </div>
+          <p id="offers-status" class="commerce-description" role="status">Connecting to the match…</p>
+          <div id="offer-groups"></div>
+        </section>
 
         <div class="section-title"><h2>Match timeline</h2><span class="timeline-source" id="timeline-minute">SEEDED SIMULATION</span></div>
         <section class="timeline-card" id="timeline-card" aria-live="polite"><span class="event-symbol" id="event-symbol" aria-hidden="true">⚽</span><div class="event-copy"><strong id="event-title">Waiting for the next moment</strong><small id="event-detail">The seeded simulator is ready</small></div></section>
@@ -436,8 +452,23 @@
         <div class="connection-note" id="connection-note" data-state="loading" role="status" aria-live="polite"><i id="connection-dot"></i><span id="connection-label">Connecting to local simulated feed…</span></div>
       </section>
 
+      <section class="view" id="wallet-view" hidden>
+        <div class="other-head"><div class="card-kicker">YOUR MATCHDAY WALLET</div><h1>Moments worth keeping.</h1><p>Your claimed coupons, each with its own merchant and use-by time.</p></div>
+        <div class="wallet-top"><p id="wallet-summary" class="commerce-description">Loading your coupons…</p><button type="button" id="wallet-refresh">REFRESH</button></div>
+        <div class="commerce-filters" aria-label="Coupon status">
+          <button type="button" data-wallet-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-wallet-filter="available" aria-pressed="false">Ready</button>
+          <button type="button" data-wallet-filter="redeemed" aria-pressed="false">Used</button>
+          <button type="button" data-wallet-filter="expired" aria-pressed="false">Expired</button>
+          <button type="button" data-wallet-filter="other" aria-pressed="false">Other</button>
+        </div>
+        <div class="form-error" id="wallet-error" role="alert" hidden></div>
+        <div id="wallet-list" class="wallet-list" aria-label="Your saved coupons"></div>
+        <p class="privacy-note">Demo coupons only. A merchant can verify them in the local demo. Your wallet belongs to your signed-in account. Demo coupons are still cleared by a match reset or server restart.</p>
+      </section>
+
       <section class="view" id="teams-view" hidden>
-        <div class="other-head"><div class="card-kicker">YOUR SIDE, YOUR CALL</div><h1>Find your club.</h1><p>Choose one team for this Premier League match. You can switch or just browse at any time.</p></div>
+        <div class="other-head"><div class="card-kicker">YOUR SIDE, YOUR CALL</div><h1>Find your club.</h1><p>Explore either team. Joining the match pool locks your side for this match. You can still browse both clubs.</p></div>
         <form class="search-form" id="search-form"><input id="team-search" type="search" placeholder="Search Arsenal or Chelsea" autocomplete="off" aria-label="Search a team"><button type="submit">SEARCH</button></form>
         <p class="search-result" id="search-result" aria-live="polite">Explore teams to help us suggest your side.</p>
         <section class="club-card"><span class="badge arsenal" aria-hidden="true">A</span><div class="club-card-copy"><strong>Arsenal</strong><small>North London · Premier League</small></div><div class="club-card-actions"><button class="follow" type="button" data-follow-team="Arsenal">FOLLOW</button><button class="explore" type="button" data-explore-team="Arsenal">EXPLORE</button></div></section>
@@ -463,6 +494,7 @@
       </section>
 
       <section class="view" id="profile-view" hidden>
+        <section class="preference-summary" aria-label="Your account"><strong id="account-name">Guest preview</strong><span id="account-email">Sign in to join match pools and access your wallet.</span></section>
         <div class="other-head"><div class="card-kicker">YOUR LOCAL PROFILE</div><h1>Matchday momentum.</h1><p>Only meaningful, one-time actions earn points. This profile stays in this browser.</p></div>
         <section class="profile-hero" aria-label="Points and streaks"><span>TOTAL PLAYPULSE POINTS</span><strong id="profile-points">0 PTS</strong><div class="profile-streaks"><div><span>PREDICTION STREAK</span><b id="prediction-streak">0 matches</b></div><div><span>MATCH STREAK</span><b id="match-streak">0 matches</b></div></div></section>
         <section class="profile-section" aria-labelledby="badges-heading"><h2 id="badges-heading">Badges</h2><p>Earned from saved local records. No sample participants or leaderboard.</p><div class="badge-grid">
@@ -490,6 +522,7 @@
 
     <nav class="bottom-nav" id="bottom-nav" aria-label="App navigation">
       <button type="button" class="active" data-go="match" aria-current="page"><span aria-hidden="true">◉</span> MATCH</button>
+      <button type="button" data-go="wallet"><span aria-hidden="true">▣</span> WALLET <b id="wallet-count" class="wallet-nav-count">0</b></button>
       <button type="button" data-go="teams"><span aria-hidden="true">⬡</span> CLUBS</button>
       <button type="button" data-go="alerts"><span aria-hidden="true">♧</span><b class="notification-count" id="notification-count" hidden>0</b> INBOX</button>
       <button type="button" data-go="profile"><span aria-hidden="true">✦</span> PROFILE</button>
@@ -502,18 +535,27 @@
     </div>
 
     <div class="flash-overlay" id="flash-overlay" hidden>
-      <section class="flash-window" role="dialog" aria-modal="true" aria-labelledby="deal-title" aria-describedby="deal-description"><div class="handle" aria-hidden="true"></div><div class="flash-head"><span class="flash-kicker" id="deal-label">⚡ FLASH MOMENT</span><div class="timer-ring" id="timer-ring" aria-label="Time remaining"><div class="timer-inside"><span id="timer-count">5:00</span></div></div></div><span class="deal-alternative" id="deal-alternative" hidden>ELIGIBLE ALTERNATIVE</span><h2 id="deal-title"></h2><p id="deal-description"></p><div class="offer-row"><span class="product-icon" id="product-icon" aria-hidden="true">👕</span><div><strong id="product-name"></strong><small id="product-label"></small></div></div><div class="price-row"><del id="original-price"></del><strong id="final-price"></strong><small id="discount-calculation"></small></div><div class="recommendation-reason"><strong id="recommendation-label">PERSONALISED RECOMMENDATIONS · RULE-BASED</strong><span><b>Why this offer?</b> <span id="why-offer"></span></span></div><div class="offer-terms"><span id="minimum-basket"></span><span id="inventory-remaining" hidden></span><span><strong>Fulfilment after claim:</strong> <span id="fulfilment-detail"></span></span><span id="funding-detail"></span></div><button class="buy-button" id="buy-button" type="button">BUY NOW →</button><button class="skip-deal" id="skip-deal" type="button">Skip this moment</button><p class="deal-note">Claim countdown and fulfilment time are separate · seeded demo vendors only.</p></section>
+      <section class="flash-window" role="dialog" aria-modal="true" aria-labelledby="deal-title" aria-describedby="deal-description"><div class="handle" aria-hidden="true"></div><div class="flash-head"><span class="flash-kicker" id="deal-label">⚡ FLASH MOMENT</span><div class="timer-ring" id="timer-ring" aria-label="Time remaining"><div class="timer-inside"><span id="timer-count">5:00</span></div></div></div><span class="deal-alternative" id="deal-alternative" hidden>ELIGIBLE ALTERNATIVE</span><h2 id="deal-title"></h2><p id="deal-description"></p><div class="offer-row"><span class="product-icon" id="product-icon" aria-hidden="true">👕</span><div><strong id="product-name"></strong><small id="product-label"></small></div></div><div class="price-row"><del id="original-price"></del><strong id="final-price"></strong><small id="discount-calculation"></small></div><div class="recommendation-reason"><strong id="recommendation-label">PERSONALISED RECOMMENDATIONS · RULE-BASED</strong><span><b>Why this offer?</b> <span id="why-offer"></span></span></div><div class="offer-terms"><span id="minimum-basket"></span><span id="inventory-remaining" hidden></span><span><strong>Fulfilment after claim:</strong> <span id="fulfilment-detail"></span></span><span id="funding-detail"></span></div><button class="buy-button" id="buy-button" type="button">CLAIM OFFER →</button><button class="skip-deal" id="skip-deal" type="button">Back to offers</button><p class="deal-note" id="claim-validity">Claim during the offer countdown · use your coupon later.</p><p class="deal-note">Demo coupon only · no payment or real merchant purchase.</p></section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="visually-hidden" id="notification-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
   </main>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/account.js"></script>
+  <script src="/match-pool.js"></script>
   <script src="/preferences.js"></script>
   <script src="/predictions.js"></script>
   <script src="/engagement.js"></script>
   <script src="/notifications.js"></script>
   <script src="/offer-ranking.js"></script>
+  <script src="/coupon-timing.js"></script>
+  <script src="/match-sentiment.js"></script>
+  <script src="/commerce.js"></script>
   <script>
+  (async function startFan() {
+    if (new URLSearchParams(location.search).has('auth_changed')) {
+      try { localStorage.setItem('playpulse-auth-changed', String(Date.now())); } catch (_) { /* Cookies remain the authoritative session. */ }
+    }
     const $ = id => document.getElementById(id);
     const teams = ['Arsenal', 'Chelsea'];
     const Preferences = window.PlayPulsePreferences;
@@ -521,9 +563,17 @@
     const Engagement = window.PlayPulseEngagement;
     const NotificationCenter = window.PlayPulseNotifications;
     const OfferRanking = window.PlayPulseOfferRanking;
+    const account = await window.PlayPulseAccount.load().catch(() => ({ user: null, role: 'fan', unavailable: true }));
+    if (!account.user && !account.demo) { location.replace('/auth'); return; }
+    const accountStorage = window.PlayPulseAccount.storageFor(account.user);
+    window.PlayPulseAccount.watch(account.user);
+    let poolSnapshot = account.demo ? null : await fetch('/api/pool', { cache: 'no-store' }).then(response => response.ok ? response.json() : null).catch(() => null);
+    if (!account.demo && account.role !== 'admin' && !poolSnapshot?.membership) { location.replace('/invitations'); return; }
+    let poolController = null;
     const socket = io();
     let mode = 'new';
     let selectedTeam = null;
+    let lockedTeam = null;
     let currentMatch = null;
     let activeDeal = null;
     let countdown = null;
@@ -547,12 +597,12 @@
     let watchParty = null;
     const invitedGroupCode = new URL(window.location.href).searchParams.get('group');
 
-    function stored(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
-    function save(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* Optional browser storage. */ } }
-    function remove(key) { try { localStorage.removeItem(key); } catch (_) { /* Optional browser storage. */ } }
+    function stored(key) { try { return accountStorage.getItem(key); } catch (_) { return null; } }
+    function save(key, value) { try { accountStorage.setItem(key, value); } catch (_) { /* Optional browser storage. */ } }
+    function remove(key) { try { accountStorage.removeItem(key); } catch (_) { /* Optional browser storage. */ } }
     function loadOfferInteractions() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(OFFER_INTERACTIONS_KEY) || '{}');
+        const parsed = JSON.parse(accountStorage.getItem(OFFER_INTERACTIONS_KEY) || '{}');
         return {
           categoryViews: parsed.categoryViews && typeof parsed.categoryViews === 'object' ? parsed.categoryViews : {},
           categoryClaims: parsed.categoryClaims && typeof parsed.categoryClaims === 'object' ? parsed.categoryClaims : {}
@@ -567,7 +617,7 @@
     }
 
     const savedTeam = stored('touchline-team');
-    const savedPreferenceState = Preferences.loadPreferences(localStorage);
+    const savedPreferenceState = Preferences.loadPreferences(accountStorage);
     if (savedPreferenceState.status === 'valid') {
       preferenceProfile = savedPreferenceState.value;
       selectedTeam = preferenceProfile.favoriteClub;
@@ -585,7 +635,7 @@
     }
 
     function pushInAppNotification(input) {
-      const result = NotificationCenter.addNotification(localStorage, input);
+      const result = NotificationCenter.addNotification(accountStorage, input);
       if (!result.ok) {
         $('notification-error').textContent = result.errors.join(' ');
         $('notification-error').hidden = false;
@@ -599,7 +649,7 @@
     }
 
     function renderNotificationCenter() {
-      const state = NotificationCenter.getState(localStorage);
+      const state = NotificationCenter.getState(accountStorage);
       $('notify-events').checked = state.preferences.eventAlerts;
       $('notify-offers').checked = state.preferences.offerAlerts;
       $('notify-quiet').checked = state.preferences.quietMode;
@@ -630,12 +680,13 @@
     }
 
     function openNotification(entry) {
-      NotificationCenter.markRead(localStorage, entry.id);
+      NotificationCenter.markRead(accountStorage, entry.id);
       renderNotificationCenter();
       if (entry.target === 'profile') { setView('profile'); return; }
+      if (entry.target === 'lobby') { setView('lobby'); return; }
+      if (entry.target === 'order' && entry.referenceId) { openClaimConfirmation(entry.referenceId); return; }
       setView('match');
       if (entry.target === 'offer' && activeDeal && Date.now() < activeDeal.expires_at) openDeal();
-      else if (entry.target === 'order') $('campaign-notice').focus?.();
     }
 
     function engagementMatchRecord(prediction) {
@@ -650,19 +701,19 @@
 
     function syncEngagementPrediction() {
       if (!currentMatch) return;
-      const predictionState = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      const predictionState = PredictionRules.getPredictionState(accountStorage, predictionConfig());
       if (!predictionState.ok) return;
-      if (predictionState.prediction) Engagement.recordPrediction(localStorage, engagementMatchRecord(predictionState.prediction));
-      if (predictionState.claim) Engagement.syncEarlyBirdBadge(localStorage, { granted: true, matchId: predictionState.config.match_id });
+      if (predictionState.prediction) Engagement.recordPrediction(accountStorage, engagementMatchRecord(predictionState.prediction));
+      if (predictionState.claim) Engagement.syncEarlyBirdBadge(accountStorage, { granted: true, matchId: predictionState.config.match_id });
       if (currentMatch.status === 'FT' && predictionState.prediction) {
         const [actualHome, actualAway] = currentMatch.score.split('-').map(Number);
-        Engagement.settlePrediction(localStorage, { matchId: predictionState.config.match_id, actualHome, actualAway });
+        Engagement.settlePrediction(accountStorage, { matchId: predictionState.config.match_id, actualHome, actualAway });
       }
     }
 
     function renderProfile() {
       syncEngagementPrediction();
-      const profile = Engagement.getProfile(localStorage);
+      const profile = Engagement.getProfile(accountStorage);
       $('profile-points').textContent = `${profile.points} PTS`;
       $('prediction-streak').textContent = `${profile.predictionStreak} match${profile.predictionStreak === 1 ? '' : 'es'}`;
       $('match-streak').textContent = `${profile.matchStreak} match${profile.matchStreak === 1 ? '' : 'es'}`;
@@ -695,7 +746,7 @@
       $('watch-create-form').hidden = false;
       watchParty = null;
       if (!code) { $('watch-status').textContent = 'No active local group. Create one above or open a local invite link.'; return; }
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (!user.ok) { $('watch-status').textContent = user.errors.join(' '); return; }
       try {
         const response = await fetch(`/api/watch-parties/${encodeURIComponent(code)}?user_id=${encodeURIComponent(user.value)}`, { cache: 'no-store' });
@@ -733,11 +784,12 @@
     }
 
     function setView(view) {
-      const validViews = ['onboarding', 'lobby', 'match', 'teams', 'alerts', 'profile'];
+      if (view === 'wallet' && !account.user) { location.assign('/auth'); return; }
+      const validViews = ['onboarding', 'lobby', 'match', 'wallet', 'teams', 'alerts', 'profile'];
       if (!validViews.includes(view)) return;
       currentView = view;
       for (const name of validViews) $(name + '-view').hidden = name !== view;
-      $('bottom-nav').hidden = view === 'onboarding' || view === 'lobby';
+      $('bottom-nav').hidden = view === 'onboarding';
       document.querySelectorAll('[data-go]').forEach(button => {
         const active = button.closest('.bottom-nav') && button.dataset.go === view;
         button.classList.toggle('active', Boolean(active));
@@ -750,6 +802,8 @@
       if (view === 'alerts') renderNotificationCenter();
       if (view === 'profile') renderProfile();
       if (view === 'lobby') renderLobby();
+      if (view === 'wallet') commerce.refreshWallet();
+      commerce.render();
     }
 
     function setPreferenceError(messages) {
@@ -771,6 +825,7 @@
       const matchDayMode = profile && Preferences.MATCH_MODES.includes(profile.matchDayMode) ? profile.matchDayMode : 'all';
       document.querySelectorAll('input[name="match-day-mode"]').forEach(input => { input.checked = input.value === matchDayMode; });
       setPreferenceError([]);
+      renderTeamLock();
     }
 
     function readPreferenceForm() {
@@ -831,7 +886,7 @@
       $('lobby-loading').hidden = Boolean(currentMatch);
       $('lobby-empty').hidden = !currentMatch || hasFixture;
       $('lobby-card').hidden = !hasFixture;
-      $('prediction-card').hidden = !hasFixture;
+      $('prediction-card').hidden = !hasFixture || !account.user;
       $('join-match').disabled = !hasFixture;
       $('preference-summary').hidden = !preferenceProfile;
 
@@ -872,7 +927,7 @@
         return;
       }
 
-      const kickoffTime = Date.parse(currentMatch.kickoff_at || '');
+      const kickoffTime = Date.parse(poolSnapshot?.pool?.kickoff_at || currentMatch.kickoff_at || '');
       $('lobby-status').textContent = 'UPCOMING DEMO';
       if (!Number.isFinite(kickoffTime)) {
         $('lobby-time').textContent = 'Kickoff time unavailable · local demo';
@@ -920,7 +975,7 @@
 
     function renderPrediction() {
       if (!currentMatch) return;
-      const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      const state = PredictionRules.getPredictionState(accountStorage, predictionConfig());
       const config = state.config;
       $('prediction-home-label').textContent = currentMatch.home_team;
       $('prediction-away-label').textContent = currentMatch.away_team;
@@ -931,7 +986,7 @@
       $('prediction-window-copy').textContent = config.lock_at
         ? `This simulated prediction window locks ${new Date(config.lock_at).toLocaleString()}.`
         : `No reliable kickoff timestamp exists. The admin controls this simulated pre-match window manually; it is currently ${state.locked ? 'locked' : 'open'}.`;
-      $('prediction-rules').textContent = `One prediction and one reward claim per local browser ID for this match. Edits are allowed until the demo window locks. The first ${config.reward_cap.toLocaleString()} eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Everyone can still use ordinary eligible offers if the cap is reached. No payment, wagering, or cash prize.`;
+      $('prediction-rules').textContent = `One reward claim per account for this match; predictions are saved in this browser. Edits are allowed until the demo window locks. The first ${config.reward_cap.toLocaleString()} eligible users in the running local demo receive the badge; this is not a real signup count and capacity resets with the server. Pool registration is separate and required to claim match offers. No payment, wagering, or cash prize.`;
 
       if (!state.ok) {
         $('prediction-form').hidden = false;
@@ -1005,7 +1060,52 @@
         if (button.classList.contains('follow')) button.textContent = isFollowing ? 'FOLLOWING' : 'FOLLOW';
       });
       updateFanStatus();
+      renderTeamLock();
       renderNotificationCenter();
+    }
+
+    function renderTeamLock() {
+      $('team-lock-note').textContent = lockedTeam
+        ? `Locked to ${lockedTeam} for this match. You can edit offer preferences, but cannot switch sides.`
+        : "Choose Arsenal or Chelsea to preview its offers. Joining the match pool will lock your side for this match.";
+      document.querySelectorAll('input[name="favorite-club"]').forEach(input => {
+        input.disabled = Boolean(lockedTeam && input.value !== lockedTeam);
+        if (lockedTeam) input.checked = input.value === lockedTeam;
+      });
+      document.querySelectorAll('[data-follow-team]').forEach(button => {
+        button.disabled = Boolean(lockedTeam && button.dataset.followTeam !== lockedTeam);
+        if (button.classList.contains('follow')) button.textContent = button.disabled ? 'LOCKED' : button.dataset.followTeam === selectedTeam ? 'FOLLOWING' : 'FOLLOW';
+      });
+      $('detail-follow').disabled = Boolean(lockedTeam && $('detail-follow').dataset.team !== lockedTeam);
+      $('lock-team').textContent = lockedTeam ? 'TEAM LOCKED' : 'JOIN POOL';
+      $('lock-team').disabled = Boolean(lockedTeam);
+    }
+
+    function applyTeamChoice(choice) {
+      lockedTeam = choice?.team || null;
+      if (lockedTeam) {
+        if (selectedTeam) { selectedTeam = lockedTeam; save('touchline-team', lockedTeam); }
+        if (preferenceProfile && preferenceProfile.favoriteClub !== lockedTeam) {
+          const saved = Preferences.savePreferences(accountStorage, { ...preferenceProfile, favoriteClub: lockedTeam });
+          if (saved.ok) preferenceProfile = saved.value;
+        }
+        if (selectedTeam && socket.connected) socket.emit('fan:select', lockedTeam);
+      }
+      renderFan();
+    }
+
+    async function lockMatchTeam(team) {
+      if (!account.user) return null;
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
+      if (!user.ok) throw new Error(user.errors.join(' '));
+      const response = await fetch('/api/fan/team', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.value, team })
+      });
+      const data = await response.json();
+      if (data.team_choice) applyTeamChoice(data.team_choice);
+      if (!response.ok) throw new Error(data.error || 'Your team could not be locked. Try again.');
+      return data.team_choice;
     }
 
     function hideDeal(markCompleted) {
@@ -1018,13 +1118,15 @@
       $('buy-button').disabled = true;
     }
 
-    function followTeam(team) {
+    async function followTeam(team) {
       if (!teams.includes(team)) return;
+      try { await lockMatchTeam(team); }
+      catch (error) { toast(error.message); return; }
       hideDeal(false);
       selectedTeam = team;
       mode = 'follow';
       if (preferenceProfile) {
-        const saved = Preferences.savePreferences(localStorage, { ...preferenceProfile, favoriteClub: team });
+        const saved = Preferences.savePreferences(accountStorage, { ...preferenceProfile, favoriteClub: team });
         if (saved.ok) preferenceProfile = saved.value;
         else toast(saved.errors.join(' '));
       }
@@ -1035,7 +1137,7 @@
       if (socket.connected) socket.emit('fan:select', team);
       renderFan();
       setView('match');
-      toast('Following ' + team + ' · live offers are on');
+      toast(lockedTeam ? 'Locked to ' + team + ' for this match' : 'Previewing ' + team + ' · join its match pool to claim offers');
     }
 
     function browse() {
@@ -1071,6 +1173,7 @@
       $('detail-heading').textContent = team + ' in this match';
       $('detail-copy').textContent = team + ' are part of this live Premier League demo. Follow them for celebration and comfort offers tied to the match.';
       $('detail-follow').dataset.team = team;
+      renderTeamLock();
       $('team-detail').hidden = false;
       $('search-result').textContent = 'Viewing ' + team + '. Follow when you are ready.';
       setView('teams');
@@ -1090,6 +1193,7 @@
       const clock = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
       $('timer-count').textContent = clock;
       $('nudge-count').textContent = clock;
+      $('claim-validity').textContent = `Claim within ${clock} · ${window.PlayPulseCouponTiming.policyLabel(activeDeal)}.`;
       $('timer-ring').style.setProperty('--arc', remaining / (activeDeal.expires_in_seconds * 1000) * 360 + 'deg');
     }
 
@@ -1105,7 +1209,7 @@
       const offerId = deal.selected_offer_id || deal.catalogue_offer_id;
       const key = `${campaignKey(deal)}:${offerId}`;
       if (recordedImpressions.has(key)) return;
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (!user.ok) return;
       recordedImpressions.add(key);
       try {
@@ -1117,6 +1221,12 @@
         if (!response.ok) recordedImpressions.delete(key);
         else if (!data.duplicate) recordOfferInteraction(deal.offer_category, 'view');
       } catch (_) { recordedImpressions.delete(key); }
+    }
+
+    function openClaimConfirmation(claimId) {
+      const localCheckout = new URL('/demo-checkout.html', window.location.origin);
+      localCheckout.searchParams.set('claim', claimId);
+      window.location.assign(localCheckout.toString());
     }
 
     function money(minor, currency = 'GBP') {
@@ -1174,7 +1284,7 @@
     }
 
     function showDeal(campaign, excludedOfferIds = []) {
-      if (!campaign || campaign.targeted_team !== selectedTeam || completedDeals.has(campaignKey(campaign)) || Date.now() >= campaign.expires_at) return;
+      if (!campaign || campaign.targeted_team !== selectedTeam || completedDeals.has(campaignKey(campaign)) || claimedCampaigns.has(campaignKey(campaign)) || Date.now() >= campaign.expires_at) return;
       const deal = selectCatalogueOffer(campaign, excludedOfferIds);
       if (!deal) {
         toast('No eligible demo offer remains for this moment');
@@ -1183,7 +1293,6 @@
       }
       clearInterval(countdown);
       activeDeal = deal;
-      pushInAppNotification({ id: `offer:${campaignKey(deal)}:active`, type: 'offer', title: 'Matchday offer activated', body: `${deal.title} · claim within ${deal.expires_in_seconds} seconds.`, target: 'offer', referenceId: deal.deal_id });
       recordDealImpression(deal);
       $('flash-overlay').dataset.mood = deal.mood;
       $('flash-overlay').dataset.event = deal.event_type;
@@ -1213,15 +1322,12 @@
       $('fulfilment-detail').textContent = `${deal.fulfilment_mode} · ${deal.fulfilment_estimate}`;
       $('funding-detail').textContent = `Funded by: ${String(deal.funding_source || 'vendor').replace('-', ' ')}`;
       $('buy-button').disabled = false;
-      $('buy-button').textContent = 'BUY NOW →';
-      const afterPenalty = ['penalty_scored', 'penalty_missed', 'penalty_trailing'].includes(deal.event_type);
-      $('deal-nudge').hidden = !afterPenalty;
-      $('nudge-title').textContent = deal.title;
-      $('nudge-icon').textContent = deal.mood === 'comfort' ? '☁' : '⚽';
-      $('flash-overlay').hidden = afterPenalty;
+      $('buy-button').textContent = 'CLAIM OFFER →';
+      $('deal-nudge').hidden = true;
+      $('flash-overlay').hidden = false;
       tick();
       countdown = setInterval(tick, 50);
-      if (!afterPenalty) $('buy-button').focus();
+      $('buy-button').focus();
     }
 
     function timelineTypeLabel(type) {
@@ -1244,7 +1350,7 @@
       if (event.offer_state === 'waiting_for_result') return 'Offer: waiting until the penalty kick is resolved';
       if (event.offer_state === 'blocked_until_confirmed') return 'Offer: blocked until this event is confirmed';
       if (event.offer_state === 'ignored') return 'Offer: none · event ignored';
-      if (event.offer_state === 'cancelled' || event.offer_state === 'withdrawn') return 'Offer: cancelled after the source event changed';
+      if (event.offer_state === 'cancelled' || event.offer_state === 'withdrawn') return 'Offer: claim windows closed · check the latest moment offers';
       if (event.offer_state === 'paused') return 'Offer: paused while the match is suspended';
       if (event.offer_state === 'exhausted') return 'Offer: demo claim capacity reached';
       if (event.offer_state === 'expired') return 'Offer: demo window expired';
@@ -1289,6 +1395,7 @@
     function updateMatch(match) {
       const oldScore = currentMatch && currentMatch.score;
       currentMatch = match;
+      if (activeDeal && !window.PlayPulseMatchSentiment.allows(match.team_sentiments, activeDeal)) hideDeal(false);
       for (const event of match.timeline || []) {
         if (event.status !== 'confirmed') continue;
         pushInAppNotification({
@@ -1336,24 +1443,24 @@
       }
       updateFanStatus();
       renderTimeline(match.timeline);
-      renderClaimHistory(match.campaigns);
+      commerce.updateMatch(match);
       renderLobby();
       if (match.status === 'FT') syncEngagementPrediction();
       if (currentView === 'profile') renderProfile();
     }
 
-    function renderClaimHistory(campaigns) {
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
-      if (!user.ok || !Array.isArray(campaigns)) return;
-      for (const campaign of campaigns) {
-        const claim = Array.isArray(campaign.claims) ? campaign.claims.find(item => item.user_id === user.value) : null;
-        if (claim) claimedCampaigns.set(campaignKey(campaign), claim);
+    function renderClaimHistory(claims) {
+      claimedCampaigns.clear();
+      $('campaign-notice').hidden = true;
+      for (const claim of claims) {
+        const campaign = currentMatch?.campaigns?.find(item => item.campaign_id === claim.campaign_id);
+        if (campaign) claimedCampaigns.set(campaignKey(campaign), claim);
         if (claim?.order_status && claim.order_status !== 'none') {
           const orderLabel = claim.order_status === 'completed' ? 'Demo order completed' : 'Demo order cancelled';
-          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:${claim.order_status}`, type: 'order', title: orderLabel, body: `${claim.coupon_code} · order status ${claim.order_status.replaceAll('_', ' ')}.`, target: 'order', referenceId: claim.claim_id });
+          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:${claim.order_status}`, type: 'order', title: orderLabel, body: `${claim.vendor_name} · order status ${claim.order_status.replaceAll('_', ' ')}.`, target: 'order', referenceId: claim.claim_id });
         }
         if (claim?.redemption_status === 'redeemed') {
-          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:redeemed`, type: 'order', title: 'Demo coupon redeemed', body: `${claim.coupon_code} was marked redeemed in the local demo.`, target: 'order', referenceId: claim.claim_id });
+          pushInAppNotification({ id: `order:${claim.claim_id}:${claim.claimed_at}:redeemed`, type: 'order', title: 'Demo coupon redeemed', body: `${claim.vendor_name} coupon was marked redeemed in the local demo.`, target: 'order', referenceId: claim.claim_id });
         }
         if (claim?.status === 'review_required') {
           $('campaign-notice-title').textContent = 'Your demo claim is preserved';
@@ -1363,13 +1470,59 @@
       }
     }
 
+    const commerce = window.PlayPulseCommerce.create({
+      socket,
+      getUser: () => account.user ? { ok: true, value: `local-${account.user.id}` } : { ok: false, errors: ['Sign in to access your wallet.'] },
+      getTeam: () => selectedTeam,
+      canClaim: () => Boolean(poolSnapshot?.membership),
+      sessionExpired: () => location.replace('/auth'),
+      getPreferences: () => preferenceProfile,
+      openCoupon: openClaimConfirmation,
+      viewOffer: showDeal,
+      toast,
+      walletUpdated: renderClaimHistory,
+      teamChoiceUpdated: applyTeamChoice,
+      momentUnlocked(key, title, count) {
+        const notification = pushInAppNotification({ id: `collection:${key}`, type: 'offer', title: `${count} match offers unlocked`, body: title, target: 'match', referenceId: key });
+        if (notification.added && notification.announce) toast(`${count} offers unlocked · explore Moment offers`);
+      },
+      claimed(campaign, claim, duplicate) {
+        if (!duplicate) recordOfferInteraction(campaign.offer_category, 'claim');
+        pushInAppNotification({ id: `claim:${claim.claim_id}:${claim.claimed_at}`, type: 'claim', title: duplicate ? 'Existing claim ready' : 'Offer claimed', body: `${claim.vendor_name} · coupon saved to Wallet.`, target: 'order', referenceId: claim.claim_id });
+      }
+    });
+
+    poolController = window.PlayPulsePool.create({
+      socket, user: account.user, getTeam: () => selectedTeam, toast,
+      changed(value) {
+        poolSnapshot = value;
+        if (value && !account.demo && account.role !== 'admin' && !value.membership) { location.replace('/invitations'); return; }
+        if (value) {
+          applyTeamChoice(value.membership ? { team: value.membership.team, match_id: value.membership.match_id, selected_at: Date.parse(value.membership.joined_at), locked: true } : null);
+          if (value.pool && currentMatch) currentMatch.kickoff_at = value.pool.kickoff_at;
+          if (currentView === 'lobby') renderLobby();
+        }
+        commerce.render();
+      },
+      joined(choice) {
+        selectedTeam = choice.team; mode = 'follow'; applyTeamChoice(choice);
+        commerce.refreshWallet(); setView('match');
+      },
+      invitation(input) { pushInAppNotification({ ...input, type: 'event', target: 'lobby', referenceId: 'match-pool' }); }
+    });
+    $('account-action').textContent = account.user ? 'SIGN OUT' : 'SIGN IN';
+    $('account-action').title = account.user ? `Signed in as ${account.user.email}` : 'Sign in or create an account';
+    if (account.user) { $('account-name').textContent = account.user.name || 'Your PlayPulse account'; $('account-email').textContent = account.user.email; }
+    if (account.user) $('account-action').addEventListener('click', event => { event.preventDefault(); window.PlayPulseAccount.logout().catch(error => toast(error.message)); });
+    document.querySelector('a[href="/admin"]').hidden = account.role !== 'admin';
+    socket.on('connect_error', () => { $('connection-label').textContent = 'Unable to connect. Refresh to restore your session.'; });
+
     socket.on('connect', () => {
       $('feed-light').classList.add('online');
       $('feed-light').setAttribute('aria-label', 'Connected to simulated feed');
       $('connection-dot').classList.add('online');
       $('connection-note').dataset.state = 'ready';
       $('connection-label').textContent = 'Connected to local simulated match feed';
-      if (selectedTeam) socket.emit('fan:select', selectedTeam);
     });
     socket.on('disconnect', () => {
       $('feed-light').classList.remove('online');
@@ -1379,17 +1532,15 @@
       $('connection-label').textContent = 'Reconnecting to local simulated feed…';
     });
     socket.on('match:state', updateMatch);
-    socket.on('deal:flash', showDeal);
     socket.on('deal:expired', data => {
-      const title = activeDeal?.deal_id === data.deal_id ? activeDeal.title : 'Matchday offer';
-      pushInAppNotification({ id: `expiry:${data.deal_id}:${data.issued_at || 'legacy'}`, type: 'expiry', title: 'Offer window expired', body: `${title} is no longer available to claim.`, target: 'offer', referenceId: data.deal_id });
+      pushInAppNotification({ id: `expiry:${data.source_event_id}:${data.team}:${data.issued_at}`, type: 'expiry', title: 'An offer window ended', body: 'Check Moment offers for other available merchants. Saved coupons keep their own use-by times.', target: 'match', referenceId: data.source_event_id });
       if (activeDeal && activeDeal.deal_id === data.deal_id) hideDeal(false);
     });
     socket.on('campaign:state', campaign => {
       if (activeDeal?.campaign_id === campaign.campaign_id && campaign.state === 'active') showDeal(campaign);
       const claimed = claimedCampaigns.get(campaignKey(campaign));
       if (!claimed) return;
-      if (campaign.state === 'cancelled') {
+      if (claimed.status === 'review_required') {
         $('campaign-notice-title').textContent = 'Your demo claim is preserved';
         $('campaign-notice-copy').textContent = 'The match decision was overturned, so this campaign is cancelled. Your claim remains in the audit trail with fulfilment marked for review.';
         $('campaign-notice').hidden = false;
@@ -1405,8 +1556,8 @@
       setPredictionError([]);
       const editing = predictionEditing;
       const result = editing
-        ? PredictionRules.editPrediction(localStorage, predictionConfig(), readPredictionForm())
-        : PredictionRules.submitPrediction(localStorage, predictionConfig(), readPredictionForm(), { deferReward: true });
+        ? PredictionRules.editPrediction(accountStorage, predictionConfig(), readPredictionForm())
+        : PredictionRules.submitPrediction(accountStorage, predictionConfig(), readPredictionForm(), { deferReward: true });
       if (!result.ok) {
         setPredictionError(result.errors);
         $('prediction-error').focus();
@@ -1420,7 +1571,7 @@
         $('prediction-submit').textContent = 'CHECKING EARLY BIRD…';
         let decision;
         try {
-          const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+          const state = PredictionRules.getPredictionState(accountStorage, predictionConfig());
           const response = await fetch('/api/rewards/early-bird/claim', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1431,7 +1582,7 @@
         } catch (_) {
           decision = { granted: false, status: 'unavailable' };
         }
-        const reward = PredictionRules.applyRewardDecision(localStorage, predictionConfig(), decision);
+        const reward = PredictionRules.applyRewardDecision(accountStorage, predictionConfig(), decision);
         if (!reward.ok) {
           setPredictionError(reward.errors);
           $('prediction-error').focus();
@@ -1443,13 +1594,13 @@
             ? 'Prediction saved. The simulated Early Bird cap is full; ordinary eligible offers remain available.'
             : 'Prediction saved. The Early Bird check is unavailable, but match offers remain accessible.';
       }
-      Engagement.recordPrediction(localStorage, engagementMatchRecord(result.prediction));
-      const engagementState = PredictionRules.getPredictionState(localStorage, predictionConfig());
-      if (engagementState.claim) Engagement.syncEarlyBirdBadge(localStorage, { granted: true, matchId: engagementState.config.match_id });
+      Engagement.recordPrediction(accountStorage, engagementMatchRecord(result.prediction));
+      const engagementState = PredictionRules.getPredictionState(accountStorage, predictionConfig());
+      if (engagementState.claim) Engagement.syncEarlyBirdBadge(accountStorage, { granted: true, matchId: engagementState.config.match_id });
       renderPrediction();
     });
     $('prediction-edit').addEventListener('click', () => {
-      const state = PredictionRules.getPredictionState(localStorage, predictionConfig());
+      const state = PredictionRules.getPredictionState(accountStorage, predictionConfig());
       if (!state.ok || !state.prediction || state.locked) return;
       predictionEditing = true;
       predictionFeedback = '';
@@ -1473,10 +1624,18 @@
         if (radio) radio.checked = true;
       });
     }
-    $('preference-form').addEventListener('submit', event => {
+    $('preference-form').addEventListener('submit', async event => {
       event.preventDefault();
       setPreferenceError([]);
-      const saved = Preferences.savePreferences(localStorage, readPreferenceForm());
+      const input = readPreferenceForm();
+      const validation = Preferences.validatePreferences(input);
+      if (!validation.ok) { setPreferenceError(validation.errors); return; }
+      const button = event.currentTarget.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try { await lockMatchTeam(input.favoriteClub); }
+      catch (error) { setPreferenceError(error.message); return; }
+      finally { button.disabled = false; }
+      const saved = Preferences.savePreferences(accountStorage, input);
       if (!saved.ok) {
         setPreferenceError(saved.errors);
         $('preference-error').focus?.();
@@ -1501,9 +1660,12 @@
       if (event.target.checked) $('no-offer-preference').checked = false;
     }));
     document.querySelectorAll('[data-edit-preferences]').forEach(button => button.addEventListener('click', openPreferenceEditor));
-    $('join-match').addEventListener('click', () => {
+    $('lock-team').addEventListener('click', () => { setView('lobby'); poolController.refresh(); });
+    $('join-match').addEventListener('click', async () => {
       if (!$('join-match').disabled) {
-        Engagement.recordMatchParticipation(localStorage, { matchId: predictionConfig().match_id, matchOrdinal: 1 });
+        try { await lockMatchTeam(selectedTeam); }
+        catch (error) { toast(error.message); return; }
+        Engagement.recordMatchParticipation(accountStorage, { matchId: predictionConfig().match_id, matchOrdinal: 1 });
         setView('match');
       }
     });
@@ -1516,7 +1678,7 @@
         return;
       }
       const code = stored(GROUP_CODE_KEY);
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (code && user.ok) {
         try { await fetch(`/api/watch-parties/${encodeURIComponent(code)}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.value }) }); }
         catch (_) { /* Local preference still turns off even if the demo server is unavailable. */ }
@@ -1527,7 +1689,7 @@
     });
     $('watch-create-form').addEventListener('submit', async event => {
       event.preventDefault();
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (!user.ok) { $('watch-status').textContent = user.errors.join(' '); return; }
       const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = 'CREATING…';
       try {
@@ -1543,7 +1705,7 @@
     });
     $('watch-join').addEventListener('click', async () => {
       const code = $('watch-join').dataset.code;
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (!code || !user.ok) return;
       $('watch-join').disabled = true;
       try {
@@ -1560,7 +1722,7 @@
       catch (_) { $('watch-invite-link').focus(); $('watch-invite-link').select(); $('watch-status').textContent = 'Copy is unavailable here. The local invite link is selected for manual copy.'; }
     });
     $('watch-leave').addEventListener('click', async () => {
-      const code = stored(GROUP_CODE_KEY); const user = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const code = stored(GROUP_CODE_KEY); const user = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (!code || !user.ok) return;
       $('watch-leave').disabled = true;
       try {
@@ -1588,13 +1750,14 @@
       remove('touchline-interest');
       remove('touchline-suggestion-dismissed');
       const groupCode = stored(GROUP_CODE_KEY);
-      const localUser = PredictionRules.getOrCreateLocalUserId(localStorage);
+      const localUser = PredictionRules.getOrCreateLocalUserId(accountStorage);
       if (groupCode && localUser.ok) fetch(`/api/watch-parties/${encodeURIComponent(groupCode)}/leave`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: localUser.value }) }).catch(() => {});
       remove(GROUP_ENABLED_KEY);
       remove(GROUP_CODE_KEY);
-      Engagement.clear(localStorage);
-      NotificationCenter.clear(localStorage);
-      Preferences.clearPreferences(localStorage);
+      Engagement.clear(accountStorage);
+      NotificationCenter.clear(accountStorage);
+      Preferences.clearPreferences(accountStorage);
+      commerce.reset();
       preferenceProfile = null;
       if (socket.connected) socket.emit('fan:clear');
       $('suggest-overlay').hidden = true;
@@ -1621,7 +1784,7 @@
     });
     for (const id of ['notify-events', 'notify-offers', 'notify-quiet']) {
       $(id).addEventListener('change', () => {
-        const saved = NotificationCenter.setPreferences(localStorage, {
+        const saved = NotificationCenter.setPreferences(accountStorage, {
           eventAlerts: $('notify-events').checked,
           offerAlerts: $('notify-offers').checked,
           quietMode: $('notify-quiet').checked
@@ -1632,59 +1795,24 @@
       });
     }
     $('notification-read-all').addEventListener('click', () => {
-      const result = NotificationCenter.markAllRead(localStorage);
+      const result = NotificationCenter.markAllRead(accountStorage);
       if (!result.ok) { $('notification-error').textContent = result.errors.join(' '); $('notification-error').hidden = false; }
       renderNotificationCenter();
     });
     $('nudge-open').addEventListener('click', openDeal);
-    $('skip-deal').addEventListener('click', () => hideDeal(true));
+    $('skip-deal').addEventListener('click', () => hideDeal(false));
     $('buy-button').addEventListener('click', async () => {
       if (!activeDeal || Date.now() >= activeDeal.expires_at) { hideDeal(false); return; }
       const deal = activeDeal;
-      const user = PredictionRules.getOrCreateLocalUserId(localStorage);
-      if (!user.ok) { toast(user.errors.join(' ')); return; }
       $('buy-button').disabled = true;
       $('buy-button').textContent = 'CLAIMING…';
-      try {
-        const response = await fetch(`/api/campaigns/${encodeURIComponent(deal.campaign_id || deal.deal_id)}/claim`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: user.value,
-            offer_id: deal.selected_offer_id || deal.catalogue_offer_id,
-            basket_subtotal_minor: deal.original_price_minor
-          })
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          const alternatives = data.campaign && selectCatalogueOffer(data.campaign, [deal.selected_offer_id]);
-          if (alternatives) {
-            showDeal(data.campaign, [deal.selected_offer_id]);
-            toast('That offer became unavailable · showing an eligible alternative');
-            return;
-          }
-          throw new Error(data.error || 'This offer could not be claimed.');
-        }
-        claimedCampaigns.set(campaignKey(data.campaign), data.claim);
-        if (!data.duplicate) recordOfferInteraction(deal.offer_category, 'claim');
-        pushInAppNotification({ id: `claim:${data.claim.claim_id}:${data.claim.claimed_at}`, type: 'claim', title: data.duplicate ? 'Existing claim ready' : 'Offer claimed', body: `${data.claim.coupon_code} · ${money(data.claim.final_price_minor, data.claim.currency)} demo claim saved.`, target: 'order', referenceId: data.claim.claim_id });
-        completedDeals.add(campaignKey(deal));
-        const localCheckout = new URL('/demo-checkout.html', window.location.origin);
-        localCheckout.searchParams.set('claim', data.claim.claim_id);
-        localCheckout.searchParams.set('coupon', data.claim.coupon_code);
-        localCheckout.searchParams.set('offer', deal.product_name || deal.title);
-        window.open(localCheckout.toString(), '_blank', 'noopener,noreferrer');
-        hideDeal(false);
-        toast(data.duplicate ? 'Your existing demo claim is ready' : 'Demo claim saved · opening retailer');
-      } catch (error) {
-        $('buy-button').disabled = false;
-        $('buy-button').textContent = 'BUY NOW →';
-        toast(error.message);
-      }
+      const claim = await commerce.claim(deal);
+      if (claim) hideDeal(false);
+      else { $('buy-button').disabled = false; $('buy-button').textContent = 'CLAIM OFFER →'; }
     });
     document.addEventListener('visibilitychange', tick);
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !$('flash-overlay').hidden) hideDeal(true);
+      if (event.key === 'Escape' && !$('flash-overlay').hidden) hideDeal(false);
       else if (event.key === 'Escape' && !$('suggest-overlay').hidden) {
         suggestionDismissed = true;
         save('touchline-suggestion-dismissed', 'true');
@@ -1694,13 +1822,14 @@
     populatePreferenceForm(preferenceProfile);
     renderFan();
     if (savedPreferenceState.status === 'valid') {
-      setView('lobby');
+      setView(new URL(window.location.href).searchParams.get('view') === 'wallet' ? 'wallet' : 'lobby');
     } else {
       setView('onboarding');
       if (savedPreferenceState.status === 'invalid') {
         setPreferenceError(['Your saved preferences were invalid. Please review and save them again.']);
       }
     }
+  })().catch(() => { document.getElementById("headline").textContent = "Unable to load PlayPulse. Please refresh."; });
   </script>
 </body>
 </html>

@@ -4,6 +4,7 @@
 const express = require('express');
 const http = require('node:http');
 const path = require('node:path');
+const { randomBytes, randomUUID } = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { Server } = require('socket.io');
 const {
@@ -25,6 +26,10 @@ const {
 const { validateMerchantCampaign, transitionMerchantCampaign } = require('./lib/merchant-campaigns');
 const { computeMerchantAnalytics, contributionEstimate } = require('./lib/merchant-analytics');
 const { buildDecisionSupport } = require('./lib/merchant-decision-support');
+const { couponStatus, couponUseError, couponPolicy, claimValidity } = require('./lib/claim-lifecycle');
+const MatchSentiment = require('./public/match-sentiment');
+const { createAccess } = require('./lib/supabase-access');
+const { readPool, validateSchedule, teamChoice } = require('./lib/match-pool');
 const {
   createWatchParty,
   joinWatchParty,
@@ -44,7 +49,10 @@ const OVERTURNABLE_TYPES = new Set(['goal', 'penalty_scored', 'penalty_missed', 
 const FEATURED_PLAYER = { Arsenal: 'Bukayo Saka', Chelsea: 'Cole Palmer' };
 
 function createFlashServer(options = {}) {
+  const access = createAccess({ ...options.auth, demoMode: options.demoMode });
   const app = express();
+  app.enable('case sensitive routing');
+  app.enable('strict routing');
   const server = http.createServer(app);
   const io = new Server(server, { serveClient: true });
   const predictionSettings = initialPredictionConfig(options);
@@ -53,12 +61,15 @@ function createFlashServer(options = {}) {
   const fulfilmentWindowSeconds = positiveNumber(options.fulfilmentWindowSeconds ?? process.env.PLAYPULSE_FULFILMENT_WINDOW_SECONDS, 86_400);
   const campaignCapacity = positiveInteger(options.campaignCapacity ?? process.env.PLAYPULSE_CAMPAIGN_CAPACITY, 1000);
   const match = initialMatch(predictionSettings, { claimWindowSeconds, fulfilmentWindowSeconds });
-  let catalogue = createDemoCatalogue(options.catalogueNow ?? Date.now());
+  const createCatalogue = options.catalogueFactory || createDemoCatalogue;
+  let catalogue = createCatalogue(options.catalogueNow ?? Date.now());
   const goals = { Arsenal: 0, Chelsea: 0 };
   let pendingPenalty = null;
   const eventsById = new Map();
   const processedPayloads = new Map();
   const campaigns = new Map();
+  const merchantClaims = new Map();
+  const teamChoices = new Map();
   const activeDeals = new Map();
   const expiryTimers = new Map();
   const earlyBirdClaims = new Map();
@@ -68,10 +79,87 @@ function createFlashServer(options = {}) {
   let eventSequence = 0;
   let nextMerchantCampaignNumber = 1;
   let nextWatchPartyNumber = 1;
+  let poolBroadcastTimer = null;
+
+  function emitToAudience(event, payload) {
+    const audience = access.demo ? io : io.to(event === 'pool:changed' ? 'accounts' : event === 'analytics:state' ? 'staff' : 'match:members');
+    audience.emit(event, payload);
+  }
+
+  async function socketAccess(socket) {
+    const req = { headers: socket.request.headers };
+    const account = await access.identify(req, null);
+    if (!account) throw new Error('Sign in to continue.');
+    const admin = await access.role(req) === 'admin';
+    const pool = await readPool(req.supabase, match.prediction.match_id);
+    return { account, admin, choice: teamChoice(pool.membership) };
+  }
 
   app.disable('x-powered-by');
   app.use(express.json({ limit: '4kb' }));
+  access.routes(app);
+  app.get('/auth', (_req, res) => res.set('Cache-Control', 'no-store').sendFile(path.join(__dirname, 'public', 'auth.html')));
+  app.use(access.wrap(async (req, res, next) => {
+    if (access.demo) return next();
+    // Canonicalise static paths as well: development filesystems may ignore case.
+    const page = path.posix.normalize(decodeURIComponent(req.path)).toLowerCase().replace(/\/+$/, '') || '/';
+    const adminPage = ['/admin', '/admin.html'].includes(page);
+    const invitationPage = ['/invitations', '/invitations.html'].includes(page);
+    const lobbyPage = ['/', '/index.html', '/demo-checkout.html'].includes(page);
+    if (!req.path.startsWith('/api/') && !adminPage && !invitationPage && !lobbyPage) return next();
+    res.set('Cache-Control', 'no-store');
+    const account = await access.identify(req, res);
+    if (!account) return !req.path.startsWith('/api/') ? res.redirect('/auth') : res.status(401).json({ error: 'Sign in to continue.' });
+    // Invitations and joining remain accessible outside the members-only lobby.
+    if (invitationPage || req.path === '/api/pool' || req.path === '/api/pool/join') return next();
+    const fanRoute = /^\/api\/(wallet|claims\/|fan\/team|campaigns\/[^/]+\/(claim|impressions)|reservations\/[^/]+\/release|watch-parties|rewards\/early-bird\/claim)/.test(req.path);
+    const matchRead = ['GET', 'HEAD'].includes(req.method) && ['/api/match', '/api/campaigns', '/api/catalogue', '/api/offers'].includes(req.path);
+    const admin = await access.role(req) === 'admin';
+    if (!lobbyPage && !fanRoute && !matchRead && !admin) return adminPage ? res.status(403).send('Administrator access is required.') : res.status(403).json({ error: 'Administrator access required.' });
+    const userId = `local-${account.id}`;
+    if (req.body && typeof req.body === 'object') req.body.user_id = userId;
+    req.query.user_id = userId;
+    if (lobbyPage || fanRoute || matchRead) {
+      req.pool = await readPool(req.supabase, match.prediction.match_id);
+      const choice = teamChoice(req.pool.membership);
+      if (choice) teamChoices.set(userId, choice); else teamChoices.delete(userId);
+      if (!choice && !admin) return lobbyPage ? res.redirect('/invitations') : res.status(403).json({ error: 'Join this match’s pool during registration to enter its lobby.', next: '/invitations' });
+    }
+    next();
+  }));
+  app.get('/invitations', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'invitations.html')));
   app.use(express.static(path.join(__dirname, 'public')));
+
+  app.get('/api/pool', access.wrap(async (req, res) => {
+    if (access.demo) return res.json({ demo: true, state: 'open', membership: null, total_members: 0, team_counts: { Arsenal: 0, Chelsea: 0 }, pool: null, server_now: Date.now() });
+    const result = await readPool(access.client(req, res), match.prediction.match_id);
+    if (result.pool) match.kickoff_at = result.pool.kickoff_at;
+    const merchants = [...new Map(catalogue.offers.filter(item => item.status === 'active').map(item => {
+      const offer = publicOffer(catalogue, item); return [offer.vendor_id, { id: offer.vendor_id, name: offer.vendor_name }];
+    })).values()];
+    res.set('Cache-Control', 'no-store').json({ ...result, merchants, guarantee: false });
+  }));
+  app.post('/api/pool/join', access.wrap(async (req, res) => {
+    if (access.demo) return res.status(409).json({ error: 'Account pools are disabled in legacy engine tests.' });
+    const { data, error } = await req.supabase.rpc('playpulse_join_pool', { p_match_id: match.prediction.match_id, p_team: req.body?.team });
+    if (error) return res.status(error.code === '42501' ? 403 : ['23514', '22023'].includes(error.code) ? 409 : 503).json({ error: ['23514', '22023', '42501'].includes(error.code) ? error.message : 'Unable to join the pool. Please try again.' });
+    const choice = teamChoice(data.membership);
+    if (!choice) return res.status(503).json({ error: 'Pool membership could not be confirmed. Please refresh.' });
+    teamChoices.set(`local-${req.account.id}`, choice);
+    if (!poolBroadcastTimer) poolBroadcastTimer = setTimeout(() => { poolBroadcastTimer = null; emitToAudience('pool:changed'); }, 5000);
+    io.to(userRoom(`local-${req.account.id}`)).emit('wallet:changed', { team_choice_changed: true });
+    res.json({ ...data, team_choice: choice });
+  }));
+  app.post('/api/admin/pool/schedule', access.wrap(async (req, res) => {
+    const checked = validateSchedule(req.body);
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    const { data, error } = await req.supabase.rpc('playpulse_schedule_pool', { p_match_id: match.prediction.match_id, p_kickoff_at: checked.value.kickoff_at, p_registration_minutes: checked.value.registration_minutes });
+    if (error) return res.status(['23514', '22023'].includes(error.code) ? 409 : error.code === '42501' ? 403 : 503).json({ error: ['23514', '22023', '42501'].includes(error.code) ? error.message : 'The match schedule could not be saved.' });
+    match.kickoff_at = data.pool.kickoff_at;
+    emitToAudience('pool:changed');
+    emitToAudience('match:state', match);
+    res.json(data);
+  }));
 
   app.get('/api/match', (_req, res) => res.set('Cache-Control', 'no-store').json({ match }));
   app.get('/api/campaigns', (_req, res) => res.set('Cache-Control', 'no-store').json({
@@ -234,13 +322,16 @@ function createFlashServer(options = {}) {
     eventsById.clear();
     processedPayloads.clear();
     campaigns.clear();
+    merchantClaims.clear();
+    teamChoices.clear();
     activeDeals.clear();
     watchParties.clear();
-    catalogue = createDemoCatalogue(options.catalogueNow ?? Date.now());
+    catalogue = createCatalogue(options.catalogueNow ?? Date.now());
     eventSequence = 0;
     Object.assign(match, initialMatch(predictionSettings, { claimWindowSeconds, fulfilmentWindowSeconds }));
-    io.emit('catalogue:state', { reset: true });
-    io.emit('match:state', match);
+    emitToAudience('catalogue:state', { reset: true });
+    emitToAudience('wallet:changed', { reset: true });
+    emitToAudience('match:state', match);
     res.json({ match });
   });
 
@@ -273,7 +364,7 @@ function createFlashServer(options = {}) {
       return res.status(409).json({ error: `Cannot advance time while match status is ${match.status}.` });
     }
     match.minutes = Math.min(90, match.minutes + amount);
-    io.emit('match:state', match);
+    emitToAudience('match:state', match);
     res.json({ match, advanced_by: amount });
   });
 
@@ -298,8 +389,41 @@ function createFlashServer(options = {}) {
       offerId: req.body?.offer_id,
       basketSubtotalMinor: req.body?.basket_subtotal_minor
     });
-    if (!result.ok) return res.status(result.status).json({ error: result.error, campaign: result.campaign || null });
+    if (!result.ok) return res.status(result.status).json({ error: result.error, campaign: result.campaign || null, existing_claim_id: result.existingClaimId || null });
     res.json({ claim: result.claim, campaign: result.campaign, duplicate: result.duplicate });
+  });
+
+  app.get('/api/claims/:claimId', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!validLocalUserId(req.query.user_id)) return res.status(400).json({ error: 'A valid local user identifier is required.' });
+    const found = findClaimById(req.params.claimId);
+    if (!found || found.claim.user_id !== req.query.user_id) return res.status(404).json({ error: 'Claim was not found for this local user. The demo may have been reset.' });
+    res.json({
+      server_now: Date.now(),
+      claim: publicClaim(found.claim),
+      offer: { product_name: found.claim.product_name, vendor_name: found.claim.vendor_name }
+    });
+  });
+
+  app.get('/api/wallet', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!validLocalUserId(req.query.user_id)) return res.status(400).json({ error: 'A valid local user identifier is required.' });
+    const claims = [...campaigns.values()].flatMap(campaign => [...campaign.claims.values()])
+      .filter(claim => claim.user_id === req.query.user_id)
+      .sort((a, b) => b.claimed_at - a.claimed_at || a.claim_id.localeCompare(b.claim_id));
+    res.json({ server_now: Date.now(), user_id: req.query.user_id, match_id: match.prediction.match_id, team_choice: teamChoices.get(req.query.user_id) || null, pool_membership: req.pool?.membership || null, claims: claims.map(publicClaim) });
+  });
+
+  app.post('/api/fan/team', (req, res) => {
+    if (!access.demo) {
+      if (!TEAMS.includes(req.body?.team)) return res.status(400).json({ error: 'Choose Arsenal or Chelsea.' });
+      const choice = teamChoice(req.pool.membership);
+      if (choice && choice.team !== req.body.team) return res.status(409).json({ error: `Your team is locked to ${choice.team} for this match.`, team_choice: choice });
+      return res.json({ team_choice: choice, preview_team: req.body.team });
+    }
+    const result = lockFanTeam(req.body?.user_id, req.body?.team);
+    if (!result.ok) return res.status(result.status).json({ error: result.error, team_choice: result.team_choice || null });
+    res.json({ team_choice: result.team_choice });
   });
 
   app.post('/api/campaigns/:campaignId/impressions', (req, res) => {
@@ -314,7 +438,7 @@ function createFlashServer(options = {}) {
     if (existing) return res.json({ impression: { ...existing }, duplicate: true });
     const impression = { impression_id: `${campaign.campaign_id}:${key}`, campaign_id: campaign.campaign_id, offer_id: offerId, user_id: userId, viewed_at: Date.now() };
     campaign.impressions.set(key, impression);
-    io.emit('analytics:state', { offer_id: offerId });
+    emitToAudience('analytics:state', { offer_id: offerId });
     res.status(201).json({ impression: { ...impression }, duplicate: false });
   });
 
@@ -323,6 +447,8 @@ function createFlashServer(options = {}) {
     if (!validLocalUserId(userId)) return res.status(400).json({ error: 'A valid local user identifier is required.' });
     const claim = findClaimByReservation(req.params.reservationId);
     if (!claim || claim.user_id !== userId) return res.status(404).json({ error: 'Reservation was not found for this local user.' });
+    if (claim.redemption_status === 'redeemed') return res.status(409).json({ error: 'A redeemed coupon reservation cannot be released.' });
+    if (claim.order_status === 'completed') return res.status(409).json({ error: 'Cancel the unredeemed demo order from the merchant workspace before releasing its reservation.' });
     const released = releaseInventory(catalogue, req.params.reservationId, 'local_user_release');
     if (!released.ok) return res.status(409).json({ error: released.error });
     if (claim.status !== 'released') {
@@ -330,10 +456,11 @@ function createFlashServer(options = {}) {
       claim.status = 'released';
       claim.redemption_status = 'cancelled';
     }
+    notifyWallet(claim);
     refreshAllCampaignOffers(claim.offer_id);
-    io.emit('catalogue:state', { offer_id: claim.offer_id });
-    io.emit('analytics:state', { offer_id: claim.offer_id });
-    io.emit('match:state', match);
+    emitToAudience('catalogue:state', { offer_id: claim.offer_id });
+    emitToAudience('analytics:state', { offer_id: claim.offer_id });
+    emitToAudience('match:state', match);
     res.json({ reservation: released.reservation, claim: publicClaim(claim), duplicate: released.duplicate });
   });
 
@@ -348,6 +475,8 @@ function createFlashServer(options = {}) {
       if (claim.order_status === 'completed') duplicate = true;
       else if (claim.order_status !== 'none' || claim.status !== 'claimed') return res.status(409).json({ error: 'Only an active claim without an order can become a completed demo order.' });
       else {
+        const error = couponUseError(claim, now);
+        if (error) return res.status(409).json({ error, claim: publicClaim(claim) });
         claim.order_id = `order-${claim.coupon_code.slice(3).toLowerCase()}`;
         claim.order_status = 'completed';
         claim.order_value_minor = claim.final_price_minor;
@@ -358,6 +487,8 @@ function createFlashServer(options = {}) {
       if (claim.redemption_status === 'redeemed') duplicate = true;
       else if (claim.order_status !== 'completed' || claim.redemption_status !== 'not_redeemed') return res.status(409).json({ error: 'Only a completed demo order can be redeemed.' });
       else {
+        const error = couponUseError(claim, now);
+        if (error) return res.status(409).json({ error, claim: publicClaim(claim) });
         claim.redemption_status = 'redeemed';
         claim.redeemed_at = now;
         claim.status_history.push({ from: claim.status, to: claim.status, at: now, reason: 'demo_coupon_redeemed' });
@@ -376,11 +507,12 @@ function createFlashServer(options = {}) {
         claim.redemption_status = 'cancelled';
       }
     } else return res.status(400).json({ error: 'action must be complete_order, redeem, or cancel_order' });
+    notifyWallet(claim);
     refreshAllCampaignOffers(claim.offer_id);
     syncCampaignSnapshot(campaign);
-    io.emit('catalogue:state', { offer_id: claim.offer_id });
-    io.emit('analytics:state', { offer_id: claim.offer_id });
-    io.emit('match:state', match);
+    emitToAudience('catalogue:state', { offer_id: claim.offer_id });
+    emitToAudience('analytics:state', { offer_id: claim.offer_id });
+    emitToAudience('match:state', match);
     res.json({ claim: publicClaim(claim), duplicate });
   });
 
@@ -388,7 +520,7 @@ function createFlashServer(options = {}) {
     const state = req.body?.state;
     if (!['open', 'locked'].includes(state)) return res.status(400).json({ error: 'state must be open or locked' });
     match.prediction.window_state = state;
-    io.emit('match:state', match);
+    emitToAudience('match:state', match);
     res.json({ prediction: match.prediction });
   });
 
@@ -435,19 +567,56 @@ function createFlashServer(options = {}) {
 
   app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
+  io.use(async (socket, next) => {
+    if (access.demo) return next();
+    try {
+      socket.data.access = await socketAccess(socket);
+      next();
+    } catch (_) { next(new Error('Account service unavailable. Reconnect after signing in.')); }
+  });
+  access.setLogoutHandler(account => { if (account) io.in(userRoom(`local-${account.id}`)).disconnectSockets(true); });
   io.on('connection', socket => {
-    socket.emit('match:state', match);
-    socket.on('fan:select', async (team, acknowledge) => {
-      if (!TEAMS.includes(team)) {
-        acknowledge?.({ error: 'Choose Arsenal or Chelsea.' });
-        return;
+    if (!access.demo) {
+      const { account, admin, choice } = socket.data.access;
+      socket.join('accounts');
+      socket.join(userRoom(`local-${account.id}`));
+      if (admin) socket.join('staff');
+      if (admin || choice) socket.join('match:members');
+    }
+    if (access.demo || socket.data.access.admin || socket.data.access.choice) socket.emit('match:state', match);
+    socket.on('fan:identify', async (userId, acknowledge) => {
+      if (!access.demo) {
+        try {
+          const { account, admin, choice } = await socketAccess(socket);
+          if (!choice && !admin) return acknowledge?.({ error: 'Pool membership is required to enter the match lobby.' });
+          userId = `local-${account.id}`;
+          if (choice) teamChoices.set(userId, choice); else teamChoices.delete(userId);
+        } catch (_) { return acknowledge?.({ error: 'Unable to restore your account. Refresh to try again.' }); }
       }
+      if (!validLocalUserId(userId)) return acknowledge?.({ error: 'A valid local user identifier is required.' });
+      if (socket.data.userId) await socket.leave(userRoom(socket.data.userId));
+      socket.data.userId = userId;
+      await socket.join(userRoom(userId));
+      acknowledge?.({ ok: true, team_choice: teamChoices.get(userId) || null });
+    });
+    socket.on('fan:select', async (team, acknowledge) => {
+      let choice;
+      if (access.demo) choice = lockFanTeam(socket.data.userId, team);
+      else {
+        try {
+          const accessResult = await socketAccess(socket);
+          if (!accessResult.choice) return acknowledge?.({ error: 'Join this match’s pool before following a side.' });
+          choice = accessResult.choice.team === team ? { ok: true } : { ok: false, error: 'Your team is locked for this match.', team_choice: accessResult.choice };
+        } catch (_) { return acknowledge?.({ error: 'Unable to verify membership. Refresh to sign in again.' }); }
+      }
+      if (!choice.ok) return acknowledge?.({ error: choice.error, team_choice: choice.team_choice || null });
       if (socket.data.team) await socket.leave(room(socket.data.team));
       socket.data.team = team;
       await socket.join(room(team));
       acknowledge?.({ team });
       const deal = currentDeal(team);
       if (deal) socket.emit('deal:flash', publicDeal(deal));
+      socket.emit('offers:state', { team, campaigns: currentDeals(team).map(publicCampaign) });
     });
     socket.on('fan:clear', async acknowledge => {
       if (socket.data.team) await socket.leave(room(socket.data.team));
@@ -455,6 +624,20 @@ function createFlashServer(options = {}) {
       acknowledge?.({ team: null });
     });
   });
+
+  function lockFanTeam(userId, team) {
+    if (!validLocalUserId(userId)) return { ok: false, status: 400, error: 'Identify your local fan profile before choosing a match team.' };
+    if (!TEAMS.includes(team)) return { ok: false, status: 400, error: 'Choose Arsenal or Chelsea.' };
+    const existing = teamChoices.get(userId);
+    if (existing && existing.team !== team) return {
+      ok: false, status: 409, error: `You are locked to ${existing.team} for this match. You cannot switch sides to claim offers.`, team_choice: existing
+    };
+    if (existing) return { ok: true, team_choice: existing };
+    const choice = { match_id: match.prediction.match_id, team, selected_at: Date.now(), locked: true };
+    teamChoices.set(userId, choice);
+    io.to(userRoom(userId)).emit('wallet:changed', { team_choice_changed: true });
+    return { ok: true, team_choice: choice };
+  }
 
   function handleEventRequest(req, res, type) {
     const started = performance.now();
@@ -604,50 +787,57 @@ function createFlashServer(options = {}) {
     if (type === 'goal') {
       goals[team] += 1;
       updateScore();
-      deals.push(issueDeal(team, 'celebrate', 'goal', player, eventId));
+      deals.push(...issueDeals(team, 'celebrate', 'goal', player, eventId));
+      if (goals[team] < goals[OTHER_TEAM[team]]) deals.push(...issueDeals(team, 'comfort', 'trailing', player, eventId));
       const opponent = OTHER_TEAM[team];
-      if (goals[opponent] < goals[team]) deals.push(issueDeal(opponent, 'comfort', 'trailing', null, eventId));
+      if (goals[opponent] < goals[team]) deals.push(...issueDeals(opponent, 'comfort', 'trailing', null, eventId));
     } else if (type === 'penalty_awarded') {
       pendingPenalty = { team, player, event_id: eventId };
       match.pending_penalty = { team, player };
-      cancelAllActiveCampaigns('penalty_attention_window');
       event.offer_state = 'waiting_for_result';
     } else if (type === 'penalty_scored') {
       pendingPenalty = null;
       match.pending_penalty = null;
       goals[team] += 1;
       updateScore();
-      deals.push(issueDeal(team, 'celebrate', 'penalty_scored', player, eventId));
+      deals.push(...issueDeals(team, 'celebrate', 'penalty_scored', player, eventId));
+      if (goals[team] < goals[OTHER_TEAM[team]]) deals.push(...issueDeals(team, 'comfort', 'penalty_trailing', player, eventId));
       const opponent = OTHER_TEAM[team];
-      if (goals[opponent] < goals[team]) deals.push(issueDeal(opponent, 'comfort', 'penalty_trailing', null, eventId));
+      if (goals[opponent] < goals[team]) deals.push(...issueDeals(opponent, 'comfort', 'penalty_trailing', null, eventId));
     } else if (type === 'penalty_missed') {
       pendingPenalty = null;
       match.pending_penalty = null;
-      deals.push(issueDeal(team, 'comfort', 'penalty_missed', player, eventId));
+      reconcileSentiments(team);
+      deals.push(...issueDeals(team, 'comfort', 'penalty_missed', player, eventId));
     } else if (type === 'half_time') {
       match.status = 'HT';
       match.minutes = Math.max(45, match.minutes);
     } else if (type === 'full_time') {
       match.status = 'FT';
       match.minutes = 90;
+      match.ended_at = event.confirmed_at;
+      setMatchDayDeadlines(match.ended_at);
       cancelAllActiveCampaigns('final_whistle');
+      reconcileSentiments();
       const winner = goals.Arsenal === goals.Chelsea ? null : (goals.Arsenal > goals.Chelsea ? 'Arsenal' : 'Chelsea');
       if (winner) {
-        deals.push(issueDeal(winner, 'celebrate', 'win', null, eventId));
-        deals.push(issueDeal(OTHER_TEAM[winner], 'comfort', 'loss', null, eventId));
+        deals.push(...issueDeals(winner, 'celebrate', 'win', null, eventId));
+        deals.push(...issueDeals(OTHER_TEAM[winner], 'comfort', 'loss', null, eventId));
       }
     } else if (type === 'postponed') {
       match.status = 'POSTPONED';
       pendingPenalty = null;
       match.pending_penalty = null;
       cancelAllActiveCampaigns('match_postponed');
+      reviewMatchDayClaims('match_postponed');
     } else if (type === 'suspended') {
       match.status = 'SUSPENDED';
       pendingPenalty = null;
       match.pending_penalty = null;
       pauseAllActiveCampaigns('match_suspended');
+      reviewMatchDayClaims('match_suspended');
     } else if (type === 'spotlight') {
-      deals.push(issueDeal(team, 'celebrate', 'spotlight', player, eventId));
+      deals.push(...issueDeals(team, 'celebrate', 'spotlight', player, eventId));
     }
     event.match_status = match.status;
     event.offers = deals.map(deal => ({ campaign_id: deal.campaign_id, deal_id: deal.deal_id, team: deal.targeted_team, mood: deal.mood, state: deal.state }));
@@ -685,9 +875,14 @@ function createFlashServer(options = {}) {
     for (const offer of original.offers) {
       const campaign = campaigns.get(offer.campaign_id || offer.deal_id);
       if (campaign && ['scheduled', 'active', 'paused'].includes(campaign.state)) closeCampaign(campaign, 'cancelled', 'source_event_overturned', false);
+      else if (campaign) {
+        markClaimsForReview(campaign, 'source_event_overturned');
+        syncCampaignSnapshot(campaign);
+      }
       offer.state = campaign?.state || 'cancelled';
     }
     transitionEvent(original, 'overturned', { reason: wasConfirmed ? 'confirmed_decision_reversed' : 'unconfirmed_decision_reversed' });
+    if (wasConfirmed && original.type === 'penalty_missed') reconcileSentiments();
     original.offer_state = original.offers.length ? 'cancelled' : 'none';
     const now = Date.now();
     const overturnId = uniqueOverturnId(eventId);
@@ -721,21 +916,26 @@ function createFlashServer(options = {}) {
     return { ok: true, event, overturnedEvent: original };
   }
 
-  function issueDeal(team, mood, source, player = null, sourceEventId = null) {
-    const old = activeDeals.get(team);
-    if (old) closeCampaign(old, 'cancelled', 'superseded_by_new_campaign', false);
+  function issueDeals(team, mood, source, player = null, sourceEventId = null) {
+    if (match.team_sentiments[team] !== mood) return [];
     const issuedAt = Date.now();
-    const discovered = discoverOffers(catalogue, {
-      matchId: match.prediction.match_id,
-      team,
-      event: source,
-      mood
-    }, issuedAt);
-    const eligibleOffers = [...discovered.preferred, ...discovered.alternatives];
+    const discovered = discoverOffers(catalogue, { matchId: match.prediction.match_id, team, event: source, mood }, issuedAt);
     const preferredCategory = mood === 'celebrate' ? 'merchandise' : 'food';
-    const primary = eligibleOffers.find(offer => offer.category === preferredCategory) || eligibleOffers[0];
-    if (!primary) return null;
-    const effectiveClaimWindowSeconds = hasClaimWindowOverride ? claimWindowSeconds : (primary.claim_window_seconds || claimWindowSeconds);
+    const offers = [...discovered.preferred, ...discovered.alternatives]
+      .filter(offer => MatchSentiment.allows(match.team_sentiments, { ...offer, ...couponPolicy(offer), targeted_team: team, mood }))
+      .filter(offer => couponPolicy(offer).coupon_validity_policy !== 'match_end' || match.ended_at === null || issuedAt < match.ended_at + couponPolicy(offer).redemption_grace_seconds * 1000)
+      .sort((a, b) => Number(b.category === preferredCategory) - Number(a.category === preferredCategory));
+    const activated = offers.map(offer => issueDeal(offer, team, mood, source, player, sourceEventId, issuedAt));
+    // One collection update per team/moment; keep the primary-deal event for existing clients.
+    if (activated.length) {
+      io.to(room(team)).emit('offers:activated', { event_id: sourceEventId, team, campaigns: activated.map(publicCampaign) });
+      io.to(room(team)).emit('deal:flash', publicDeal(activated[0]));
+    }
+    return activated;
+  }
+
+  function issueDeal(offer, team, mood, source, player, sourceEventId, issuedAt) {
+    const effectiveClaimWindowSeconds = hasClaimWindowOverride ? claimWindowSeconds : (offer.claim_window_seconds || claimWindowSeconds);
     const title = source === 'goal' ? (player ? `GOAL! ${player} scores for ${team}!` : `GOAL! ${team} Scores!`) :
       source === 'penalty_scored' ? (player ? `GOAL! ${player} converts!` : `GOAL! ${team} converts!`) :
       source === 'penalty_missed' ? `A tough penalty for ${team}` :
@@ -743,48 +943,38 @@ function createFlashServer(options = {}) {
       source === 'win' ? `${team} wins!` :
       source === 'loss' ? `A tough finish for ${team}` : `A tough moment for ${team}`;
     const id = `${TEAM_SLUG[team]}-${mood}-${nextDealNumber++}`;
+    const timing = claimValidity(offer, match.ended_at, fulfilmentWindowSeconds, issuedAt);
+    const expiresAt = Math.min(issuedAt + effectiveClaimWindowSeconds * 1000,
+      Date.parse(offer.claim_deadline_at), Date.parse(offer.campaign_end_at), timing.coupon_validity_policy === 'match_end' ? (timing.fulfilment_expires_at ?? Infinity) : Infinity);
     const campaign = {
+      ...offer,
+      ...couponPolicy(offer),
+      match_ended_at: match.ended_at,
       campaign_id: id,
       deal_id: id,
+      match_id: match.prediction.match_id,
       title,
-      description: primary.description,
-      checkout_url: primary.checkout_url,
+      offer_title: offer.title,
       targeted_team: team,
       mood,
       event_type: source,
       player_name: player,
       spotlight: source === 'spotlight',
       source_event_id: sourceEventId,
-      catalogue_offer_id: primary.offer_id,
-      eligible_offers: eligibleOffers,
-      offer_category: primary.category,
-      product_name: primary.product_name,
-      product_label: `DEMO · ${discountLabel(primary)} · ${formatMinor(primary.final_price_minor, primary.currency)}`,
-      product_icon: primary.product_icon,
-      vendor_id: primary.vendor_id,
-      vendor_name: primary.vendor_name,
-      original_price_minor: primary.original_price_minor,
-      discount_type: primary.discount_type,
-      discount_value: primary.discount_value,
-      discount_minor: primary.discount_minor,
-      final_price_minor: primary.final_price_minor,
-      currency: primary.currency,
-      minimum_basket_minor: primary.minimum_basket_minor,
-      quantity_cap: primary.quantity_cap,
-      remaining_quantity: primary.remaining_quantity,
-      inventory_tracked: primary.inventory_tracked,
-      fulfilment_mode: primary.fulfilment_mode,
-      fulfilment_estimate: primary.fulfilment_estimate,
-      funding_source: primary.funding_source,
+      moment_sequence: eventSequence,
+      catalogue_offer_id: offer.offer_id,
+      eligible_offers: [offer],
+      offer_category: offer.category,
+      product_label: `DEMO · ${discountLabel(offer)} · ${formatMinor(offer.final_price_minor, offer.currency)}`,
       state: 'scheduled',
       state_history: [{ from: null, to: 'scheduled', at: issuedAt, reason: 'confirmed_event_rule_matched' }],
       issued_at: issuedAt,
       claim_window_seconds: effectiveClaimWindowSeconds,
       expires_in_seconds: effectiveClaimWindowSeconds,
-      claim_expires_at: Math.min(issuedAt + effectiveClaimWindowSeconds * 1000, Date.parse(primary.claim_deadline_at)),
-      expires_at: Math.min(issuedAt + effectiveClaimWindowSeconds * 1000, Date.parse(primary.claim_deadline_at)),
-      fulfilment_window_seconds: fulfilmentWindowSeconds,
-      capacity: campaignCapacity,
+      claim_expires_at: expiresAt,
+      expires_at: expiresAt,
+      fulfilment_window_seconds: timing.coupon_validity_policy === 'after_claim' ? fulfilmentWindowSeconds : null,
+      capacity: Math.min(campaignCapacity, offer.max_redemptions),
       claim_count: 0,
       claims: new Map(),
       impressions: new Map(),
@@ -792,10 +982,9 @@ function createFlashServer(options = {}) {
     };
     campaigns.set(id, campaign);
     transitionCampaign(campaign, 'active', { at: issuedAt, reason: 'confirmed_event_activated' });
-    activeDeals.set(team, campaign);
+    activeDeals.set(id, campaign);
     syncCampaignSnapshot(campaign);
     scheduleCampaignExpiry(campaign);
-    io.to(room(team)).emit('deal:flash', publicDeal(campaign));
     return campaign;
   }
 
@@ -804,8 +993,19 @@ function createFlashServer(options = {}) {
     if (!validLocalUserId(userId)) return { ok: false, status: 400, error: 'A valid local user identifier is required.' };
     const campaign = campaigns.get(campaignId);
     if (!campaign) return { ok: false, status: 404, error: 'Campaign was not found.' };
+    if (input.offerId && input.offerId !== campaign.catalogue_offer_id) return { ok: false, status: 400, error: 'This activation belongs to a different offer.', campaign: publicCampaign(campaign) };
     const existing = campaign.claims.get(userId);
     if (existing) return { ok: true, duplicate: true, claim: publicClaim(existing), campaign: publicCampaign(campaign) };
+    const choice = teamChoices.get(userId);
+    if (!choice) return { ok: false, status: 409, error: 'Choose and lock your team for this match before claiming an offer.', campaign: publicCampaign(campaign) };
+    if (choice.team !== campaign.targeted_team) return { ok: false, status: 409, error: `This offer is for ${campaign.targeted_team} fans. Your team is locked to ${choice.team} for this match.`, campaign: publicCampaign(campaign) };
+    if (!MatchSentiment.allows(match.team_sentiments, campaign)) return { ok: false, status: 409, error: 'The match has changed. This offer is no longer available to claim. Check the latest moment offers.', campaign: publicCampaign(campaign) };
+    const merchantKey = JSON.stringify([userId, campaign.match_id, campaign.vendor_id]);
+    const merchantClaim = merchantClaims.get(merchantKey);
+    if (merchantClaim) return {
+      ok: false, status: 409, error: 'You already claimed a coupon from this merchant for this match. Find it in your wallet.',
+      existingClaimId: merchantClaim.claim_id, campaign: publicCampaign(campaign)
+    };
     const now = Date.now();
     const eligibility = campaignClaimability(campaign, now);
     if (!eligibility.claimable) {
@@ -814,10 +1014,14 @@ function createFlashServer(options = {}) {
     }
     const selectedOffer = campaign.eligible_offers.find(offer => offer.offer_id === (input.offerId || campaign.catalogue_offer_id));
     if (!selectedOffer) return { ok: false, status: 400, error: 'Choose an eligible catalogue offer from this campaign.', campaign: publicCampaign(campaign) };
+    const liveOffer = catalogue.offers.find(offer => offer.offer_id === selectedOffer.offer_id);
+    if (!liveOffer || liveOffer.vendor_id !== campaign.vendor_id) return { ok: false, status: 409, error: 'This offer has changed and is no longer available for this activation.', campaign: publicCampaign(campaign) };
+    const validity = claimValidity(campaign, match.ended_at, fulfilmentWindowSeconds, now);
+    if (validity.fulfilment_expires_at !== null && now >= validity.fulfilment_expires_at) return { ok: false, status: 409, error: 'This coupon use window has ended.', campaign: publicCampaign(campaign) };
     const basketSubtotalMinor = input.basketSubtotalMinor === undefined || input.basketSubtotalMinor === null
       ? selectedOffer.original_price_minor
       : Number(input.basketSubtotalMinor);
-    const reservationId = `reservation-${deterministicCouponCode(campaign.campaign_id, userId).slice(3).toLowerCase()}`;
+    const reservationId = `reservation-${randomUUID()}`;
     const reserved = reserveInventory(catalogue, {
       reservation_id: reservationId,
       reservation_key: `${campaign.campaign_id}:${userId}`,
@@ -836,15 +1040,26 @@ function createFlashServer(options = {}) {
     const currentOffer = publicOffer(catalogue, catalogue.offers.find(offer => offer.offer_id === selectedOffer.offer_id));
     const claim = {
       claim_id: `${campaign.campaign_id}:${userId}`,
-      coupon_code: deterministicCouponCode(campaign.campaign_id, userId),
+      coupon_code: `PP-${randomBytes(12).toString('hex').toUpperCase()}`,
       reservation_id: reserved.reservation.reservation_id,
+      campaign_id: campaign.campaign_id,
+      match_id: campaign.match_id,
+      source_event_id: campaign.source_event_id,
+      source_event_label: campaign.title,
+      source_event_minute: eventsById.get(campaign.source_event_id)?.minute ?? null,
+      targeted_team: campaign.targeted_team,
+      event_type: campaign.event_type,
       offer_id: currentOffer.offer_id,
+      offer_title: currentOffer.title,
+      product_name: currentOffer.product_name,
+      product_icon: currentOffer.product_icon,
       vendor_id: currentOffer.vendor_id,
+      vendor_name: currentOffer.vendor_name,
       user_id: userId,
       status: 'claimed',
       redemption_status: 'not_redeemed',
       claimed_at: now,
-      fulfilment_expires_at: now + fulfilmentWindowSeconds * 1000,
+      ...validity,
       fulfilment_mode: currentOffer.fulfilment_mode,
       fulfilment_estimate: currentOffer.fulfilment_estimate,
       basket_subtotal_minor: basketSubtotalMinor,
@@ -864,14 +1079,16 @@ function createFlashServer(options = {}) {
       status_history: [{ from: null, to: 'claimed', at: now, reason: 'eligible_claim' }]
     };
     campaign.claims.set(userId, claim);
+    merchantClaims.set(merchantKey, claim);
     campaign.claim_count += 1;
     if (campaign.claim_count >= campaign.capacity) closeCampaign(campaign, 'exhausted', 'capacity_reached', false);
     refreshAllCampaignOffers(currentOffer.offer_id);
     syncCampaignSnapshot(campaign);
     io.to(room(campaign.targeted_team)).emit('campaign:state', publicCampaign(campaign));
-    io.emit('catalogue:state', { offer_id: currentOffer.offer_id });
-    io.emit('analytics:state', { offer_id: currentOffer.offer_id });
-    io.emit('match:state', match);
+    emitToAudience('catalogue:state', { offer_id: currentOffer.offer_id });
+    emitToAudience('analytics:state', { offer_id: currentOffer.offer_id });
+    emitToAudience('match:state', match);
+    notifyWallet(claim);
     return { ok: true, duplicate: false, claim: publicClaim(claim), campaign: publicCampaign(campaign) };
   }
 
@@ -893,24 +1110,57 @@ function createFlashServer(options = {}) {
     if (timer) clearTimeout(timer);
     expiryTimers.delete(campaign.campaign_id);
     transitionCampaign(campaign, nextState, { reason });
-    if (activeDeals.get(campaign.targeted_team)?.campaign_id === campaign.campaign_id) activeDeals.delete(campaign.targeted_team);
-    if (nextState === 'cancelled' && campaign.claims.size) {
-      for (const claim of campaign.claims.values()) {
-        if (claim.status !== 'claimed') continue;
-        claim.status_history.push({ from: claim.status, to: 'review_required', at: Date.now(), reason });
-        claim.status = 'review_required';
-      }
-    }
+    activeDeals.delete(campaign.campaign_id);
+    const closesClaimWindowOnly = ['superseded_by_new_campaign', 'penalty_attention_window', 'final_whistle', 'match_sentiment_changed'].includes(reason);
+    if (nextState === 'cancelled' && !closesClaimWindowOnly) markClaimsForReview(campaign, reason);
     updateOfferReference(campaign);
     syncCampaignSnapshot(campaign);
     notifyCampaignClosed(campaign, nextState, reason);
-    if (broadcast) io.emit('match:state', match);
+    if (broadcast) emitToAudience('match:state', match);
     return true;
+  }
+
+  function markClaimsForReview(campaign, reason) {
+    for (const claim of campaign.claims.values()) {
+      if (claim.status !== 'claimed' || claim.redemption_status !== 'not_redeemed') continue;
+      claim.status_history.push({ from: claim.status, to: 'review_required', at: Date.now(), reason });
+      claim.status = 'review_required';
+      notifyWallet(claim);
+    }
+  }
+
+  function notifyWallet(claim) {
+    io.to(userRoom(claim.user_id)).emit('wallet:changed', { claim_id: claim.claim_id });
+  }
+
+  function setMatchDayDeadlines(endedAt) {
+    for (const campaign of campaigns.values()) {
+      campaign.match_ended_at = endedAt;
+      for (const claim of campaign.claims.values()) {
+        if (claim.coupon_validity_policy !== 'match_end' || !claim.awaiting_match_end) continue;
+        claim.awaiting_match_end = false;
+        claim.match_ended_at = endedAt;
+        claim.fulfilment_expires_at = endedAt + claim.redemption_grace_seconds * 1000;
+        claim.status_history.push({ from: claim.status, to: claim.status, at: endedAt, reason: 'match_finished_coupon_deadline_set' });
+        notifyWallet(claim);
+      }
+      syncCampaignSnapshot(campaign);
+    }
+    emitToAudience('analytics:state', {});
+  }
+
+  function reviewMatchDayClaims(reason) {
+    for (const campaign of campaigns.values()) {
+      if (campaign.coupon_validity_policy !== 'match_end') continue;
+      markClaimsForReview(campaign, reason);
+      syncCampaignSnapshot(campaign);
+    }
+    emitToAudience('analytics:state', {});
   }
 
   function notifyCampaignClosed(campaign, state, reason) {
     io.to(room(campaign.targeted_team)).emit('campaign:state', { ...publicCampaign(campaign), reason });
-    io.to(room(campaign.targeted_team)).emit('deal:expired', { deal_id: campaign.deal_id, campaign_id: campaign.campaign_id, issued_at: campaign.issued_at, state, reason });
+    io.to(room(campaign.targeted_team)).emit('deal:expired', { deal_id: campaign.deal_id, campaign_id: campaign.campaign_id, issued_at: campaign.issued_at, source_event_id: campaign.source_event_id, team: campaign.targeted_team, state, reason });
   }
 
   function scheduleCampaignExpiry(campaign) {
@@ -948,6 +1198,8 @@ function createFlashServer(options = {}) {
       if (primary) {
         campaign.remaining_quantity = primary.remaining_quantity;
         campaign.inventory_tracked = primary.inventory_tracked;
+        campaign.metrics = primary.metrics;
+        campaign.status = primary.status;
       }
       syncCampaignSnapshot(campaign);
     }
@@ -959,8 +1211,8 @@ function createFlashServer(options = {}) {
       if (!campaign.eligible_offers.some(offer => offer.offer_id === offerId)) continue;
       io.to(room(campaign.targeted_team)).emit('campaign:state', publicCampaign(campaign));
     }
-    io.emit('catalogue:state', { offer_id: offerId });
-    io.emit('match:state', match);
+    emitToAudience('catalogue:state', { offer_id: offerId });
+    emitToAudience('match:state', match);
   }
 
   function findClaimByReservation(reservationId) {
@@ -1023,30 +1275,41 @@ function createFlashServer(options = {}) {
     match.last_event_player = event.player;
     match.last_event_minute = event.minute;
     match.timeline.sort(compareTimelineEvents);
-    io.emit('match:state', match);
+    emitToAudience('match:state', match);
   }
 
-  function currentDeal(team) {
-    const campaign = activeDeals.get(team);
-    if (!campaign) return null;
-    if (campaign.state !== 'active' || Date.now() >= campaign.claim_expires_at) {
-      if (campaign.state === 'active') closeCampaign(campaign, 'expired', 'claim_window_elapsed');
-      return null;
+  function currentDeals(team) {
+    return [...activeDeals.values()].filter(campaign => {
+      if (campaign.state === 'active' && Date.now() >= campaign.claim_expires_at) closeCampaign(campaign, 'expired', 'claim_window_elapsed', false);
+      return campaign.targeted_team === team && campaign.state === 'active';
+    }).sort((a, b) => b.moment_sequence - a.moment_sequence);
+  }
+
+  function currentDeal(team) { return currentDeals(team)[0] || null; }
+
+  function reconcileSentiments(comfortTeam = null) {
+    match.team_sentiments = MatchSentiment.fromScore(goals.Arsenal, goals.Chelsea);
+    if (comfortTeam) match.team_sentiments[comfortTeam] = 'comfort';
+    for (const campaign of [...activeDeals.values()]) {
+      if (!MatchSentiment.allows(match.team_sentiments, campaign)) closeCampaign(campaign, 'cancelled', 'match_sentiment_changed', false);
     }
-    return campaign;
   }
 
-  function updateScore() { match.score = `${goals.Arsenal}-${goals.Chelsea}`; }
+  function updateScore() {
+    match.score = `${goals.Arsenal}-${goals.Chelsea}`;
+    reconcileSentiments();
+  }
 
   const matchClock = setInterval(() => {
     if (match.status === 'LIVE' && match.minutes < 90) {
       match.minutes += 1;
-      io.emit('match:state', match);
+      emitToAudience('match:state', match);
     }
   }, 60_000);
 
   async function close() {
     clearInterval(matchClock);
+    clearTimeout(poolBroadcastTimer);
     for (const timer of expiryTimers.values()) clearTimeout(timer);
     await new Promise(resolve => io.close(resolve));
     if (server.listening) await new Promise(resolve => server.close(resolve));
@@ -1075,13 +1338,13 @@ function publicDeal(campaign) {
 }
 
 function publicCampaign(campaign) {
-  const { claims, impressions, paused_remaining_ms, ...data } = campaign;
-  return { ...data, campaign_state: campaign.state, claims: [...claims.values()].map(publicClaim) };
+  return publicDeal(campaign);
 }
 
 function publicClaim(claim) {
   return {
     ...claim,
+    coupon_status: couponStatus(claim),
     status_history: claim.status_history.map(item => ({ ...item })),
     order_history: (claim.order_history || []).map(item => ({ ...item }))
   };
@@ -1097,6 +1360,7 @@ function initialMatch(prediction = initialPredictionConfig(), campaignConfig = {
     data_source: 'seeded_simulator',
     demo_fixture_id: 'arsenal-chelsea-demo-001',
     kickoff_at: null,
+    ended_at: null,
     prediction: { ...prediction },
     offer_catalogue: { label: 'Seeded local demo catalogue', demo: true, inventory_persistence: 'in_memory' },
     campaign_config: {
@@ -1104,6 +1368,7 @@ function initialMatch(prediction = initialPredictionConfig(), campaignConfig = {
       fulfilment_window_seconds: campaignConfig.fulfilmentWindowSeconds ?? 86_400
     },
     score: '0-0',
+    team_sentiments: MatchSentiment.fromScore(0, 0),
     status: 'LIVE',
     pending_penalty: null,
     last_event: 'none',
@@ -1137,14 +1402,10 @@ function initialPredictionConfig(options = {}) {
 
 function uniqueOverturnId(eventId) { return `overturn-${eventId}`.slice(0, 80); }
 function room(team) { return `fans:${team}`; }
+function userRoom(userId) { return `local-user:${userId}`; }
 function positiveNumber(value, fallback) { const number = Number(value); return Number.isFinite(number) && number > 0 ? number : fallback; }
 function positiveInteger(value, fallback) { const number = Number(value); return Number.isSafeInteger(number) && number > 0 ? number : fallback; }
 function validLocalUserId(value) { return typeof value === 'string' && /^local-[a-zA-Z0-9-]{6,100}$/.test(value); }
-function deterministicCouponCode(campaignId, userId) {
-  let hash = 2166136261;
-  for (const character of `${campaignId}:${userId}`) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
-  return `PP-${(hash >>> 0).toString(36).toUpperCase().padStart(7, '0')}`;
-}
 function discountLabel(offer) {
   return offer.discount_type === 'percentage'
     ? `${offer.discount_value}% OFF`
@@ -1165,6 +1426,8 @@ function claimError(reason) {
 }
 
 if (require.main === module) {
+  try { require('node:process').loadEnvFile(path.join(__dirname, '.env')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   const { server } = createFlashServer();
   server.listen(PORT, HOST, () => {
     console.log(`Fan view: http://${HOST}:${PORT}`);

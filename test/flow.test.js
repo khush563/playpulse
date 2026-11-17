@@ -24,7 +24,10 @@ async function jsonRequest(url, path, method, body = {}) {
   return { status: response.status, body: await response.json() };
 }
 
-function selectTeam(socket, team) {
+async function selectTeam(socket, team) {
+  socket.auth ||= {};
+  socket.auth.userId ||= `local-socket-${require('node:crypto').randomUUID()}`;
+  await new Promise(resolve => socket.emit('fan:identify', socket.auth.userId, resolve));
   return new Promise(resolve => socket.emit('fan:select', team, resolve));
 }
 
@@ -33,7 +36,7 @@ function clearTeam(socket) {
 }
 
 test('penalty offers wait for the result and reach only the right fans', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   const arsenal = io(url, { transports: ['websocket'], autoConnect: false });
@@ -50,13 +53,14 @@ test('penalty offers wait for the result and reach only the right fans', async (
     unselected.connect();
     assert.deepEqual(await initial, {
       minutes: 14, home_team: 'Arsenal', away_team: 'Chelsea', competition: 'Premier League',
-      fixture_kind: 'local_demo', data_source: 'seeded_simulator', demo_fixture_id: 'arsenal-chelsea-demo-001', kickoff_at: null, score: '0-0',
+      fixture_kind: 'local_demo', data_source: 'seeded_simulator', demo_fixture_id: 'arsenal-chelsea-demo-001', kickoff_at: null, ended_at: null, score: '0-0',
       prediction: {
         match_id: 'arsenal-chelsea-local-demo', mode: 'simulated', window_state: 'open', lock_at: null,
         reward_cap: 5000, edit_policy: 'before_lock', reward_label: 'PlayPulse Early Bird'
       },
       offer_catalogue: { label: 'Seeded local demo catalogue', demo: true, inventory_persistence: 'in_memory' },
       campaign_config: { claim_window_seconds: 300, fulfilment_window_seconds: 86400 },
+      team_sentiments: { Arsenal: 'neutral', Chelsea: 'neutral' },
       status: 'LIVE', pending_penalty: null, last_event: 'none', last_event_player: null, last_event_minute: null, timeline: [], campaigns: []
     });
     await Promise.all([selectTeam(arsenal, 'Arsenal'), selectTeam(chelsea, 'Chelsea')]);
@@ -74,7 +78,10 @@ test('penalty offers wait for the result and reach only the right fans', async (
     const goal = await post(url, '/api/events/goal', { team: 'Arsenal' });
     assert.equal(goal.status, 200);
     assert.equal(goal.body.match.score, '1-0');
-    assert.equal(goal.body.deals.length, 2);
+    assert.equal(goal.body.deals.length, 6);
+    assert.equal(goal.body.deals.filter(deal => deal.targeted_team === 'Arsenal').length, 4);
+    assert.equal(goal.body.deals.filter(deal => deal.targeted_team === 'Chelsea').length, 2);
+    assert.ok(goal.body.deals.every(deal => deal.eligible_offers.length === 1));
     const celebration = await arsenalGoalDeal;
     const comfort = await chelseaTrailingDeal;
     assert.equal(celebration.targeted_team, 'Arsenal');
@@ -96,11 +103,8 @@ test('penalty offers wait for the result and reach only the right fans', async (
     const replay = waitFor(lateFan, 'deal:flash');
     assert.deepEqual(await selectTeam(lateFan, 'Arsenal'), { team: 'Arsenal' });
     assert.deepEqual(await replay, celebration);
-    const switchedReplay = waitFor(lateFan, 'deal:flash');
-    await selectTeam(lateFan, 'Chelsea');
-    assert.deepEqual(await switchedReplay, comfort);
+    assert.match((await selectTeam(lateFan, 'Chelsea')).error, /locked to Arsenal/);
 
-    const oldChelseaOfferExpired = waitFor(chelsea, 'deal:expired');
     const penalty = await post(url, '/api/events/penalty', { team: 'Chelsea', player: 'Cole Palmer' });
     assert.equal(penalty.status, 200);
     assert.deepEqual(penalty.body.deals, []);
@@ -108,11 +112,10 @@ test('penalty offers wait for the result and reach only the right fans', async (
     assert.equal(penalty.body.match.last_event, 'PENALTY awarded to Chelsea');
     assert.equal(penalty.body.match.last_event_player, 'Cole Palmer');
     assert.deepEqual(penalty.body.match.pending_penalty, { team: 'Chelsea', player: 'Cole Palmer' });
-    assert.equal((await oldChelseaOfferExpired).deal_id, comfort.deal_id);
+    assert.equal(penalty.body.match.campaigns.find(campaign => campaign.campaign_id === comfort.campaign_id).state, 'active');
     assert.equal((await post(url, '/api/events/goal', { team: 'Arsenal' })).status, 409);
     assert.equal((await post(url, '/api/events/penalty-result', { team: 'Arsenal', outcome: 'scored' })).status, 400);
     const chelseaMissed = waitFor(chelsea, 'deal:flash');
-    const lateMissed = waitFor(lateFan, 'deal:flash');
     const miss = await post(url, '/api/events/penalty-result', { team: 'Chelsea', outcome: 'missed' });
     assert.equal(miss.status, 200);
     assert.equal(miss.body.match.score, '1-0');
@@ -121,7 +124,6 @@ test('penalty offers wait for the result and reach only the right fans', async (
     const missedDeal = await chelseaMissed;
     assert.equal(missedDeal.mood, 'comfort');
     assert.equal(missedDeal.player_name, 'Cole Palmer');
-    assert.equal((await lateMissed).event_type, 'penalty_missed');
     assert.equal(unselectedOffers, 0);
 
     let clearedFanOffers = 0;
@@ -136,12 +138,11 @@ test('penalty offers wait for the result and reach only the right fans', async (
     assert.equal((await arsenalSpotlight).event_type, 'spotlight');
     assert.equal((await post(url, '/api/events/spotlight', { team: 'Arsenal', player: 'Kylian Mbappé' })).status, 400);
 
-    const arsenalSpotlightExpired = waitFor(arsenal, 'deal:expired');
     const awarded = await post(url, '/api/events/penalty', { team: 'Arsenal', player: 'Bukayo Saka' });
     assert.equal(awarded.status, 200);
     assert.deepEqual(awarded.body.deals, []);
     assert.equal(awarded.body.match.score, '1-0');
-    assert.equal((await arsenalSpotlightExpired).deal_id, spotlight.body.deals[0].deal_id);
+    assert.equal(awarded.body.match.campaigns.find(campaign => campaign.campaign_id === spotlight.body.deals[0].campaign_id).state, 'active');
     const arsenalPenaltyGoal = waitFor(arsenal, 'deal:flash');
     const chelseaTrailingAgain = waitFor(chelsea, 'deal:flash');
     const scored = await post(url, '/api/events/penalty-result', { team: 'Arsenal', outcome: 'scored' });
@@ -182,7 +183,7 @@ test('penalty offers wait for the result and reach only the right fans', async (
 });
 
 test('Early Bird capacity is shared in the running local server without blocking later users', async () => {
-  const app = createFlashServer({ earlyBirdCap: 1 });
+  const app = createFlashServer({ demoMode: true, earlyBirdCap: 1 });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -206,7 +207,7 @@ test('Early Bird capacity is shared in the running local server without blocking
 });
 
 test('simulator orders events, ignores duplicate IDs, validates payloads, overturns, and resets', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -256,7 +257,7 @@ test('simulator orders events, ignores duplicate IDs, validates payloads, overtu
 });
 
 test('generated IDs remain distinct after reset so persistent clients see a new demo run', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -275,7 +276,7 @@ test('generated IDs remain distinct after reset so persistent clients see a new 
 });
 
 test('pending events cannot activate campaigns; confirmation, claims, duplicates, and overturns are audited', async () => {
-  const app = createFlashServer({ campaignCapacity: 2 });
+  const app = createFlashServer({ demoMode: true, campaignCapacity: 2 });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -297,16 +298,17 @@ test('pending events cannot activate campaigns; confirmation, claims, duplicates
     assert.equal(confirmed.status, 200);
     assert.equal(confirmed.body.event.state, 'confirmed');
     assert.equal(confirmed.body.match.score, '1-0');
-    assert.equal(confirmed.body.deals.length, 2);
-    assert.equal(confirmed.body.match.campaigns.length, 2);
+    assert.equal(confirmed.body.deals.length, 6);
+    assert.equal(confirmed.body.match.campaigns.length, 6);
     assert.deepEqual(confirmed.body.match.campaigns[0].state_history.map(step => step.to), ['scheduled', 'active']);
 
     const duplicateConfirmation = await post(url, '/api/simulator/confirm', { event_id: 'state-goal-001' });
     assert.equal(duplicateConfirmation.status, 200);
     assert.equal(duplicateConfirmation.body.duplicate, true);
-    assert.equal(duplicateConfirmation.body.match.campaigns.length, 2);
+    assert.equal(duplicateConfirmation.body.match.campaigns.length, 6);
 
     const campaignId = confirmed.body.deals.find(deal => deal.targeted_team === 'Arsenal').campaign_id;
+    await post(url, '/api/fan/team', { user_id: 'local-state-user', team: 'Arsenal' });
     const firstClaim = await post(url, `/api/campaigns/${campaignId}/claim`, { user_id: 'local-state-user' });
     assert.equal(firstClaim.status, 200);
     assert.equal(firstClaim.body.claim.status, 'claimed');
@@ -322,8 +324,10 @@ test('pending events cannot activate campaigns; confirmation, claims, duplicates
     assert.equal(overturned.body.match.score, '0-0');
     const cancelled = overturned.body.match.campaigns.find(campaign => campaign.campaign_id === campaignId);
     assert.equal(cancelled.state, 'cancelled');
-    assert.equal(cancelled.claims[0].status, 'review_required');
-    assert.ok(cancelled.claims[0].status_history.some(step => step.reason === 'source_event_overturned'));
+    assert.equal(cancelled.claims, undefined);
+    const wallet = await fetch(`${url}/api/wallet?user_id=local-state-user`).then(response => response.json());
+    assert.equal(wallet.claims[0].status, 'review_required');
+    assert.ok(wallet.claims[0].status_history.some(step => step.reason === 'source_event_overturned'));
 
     const delayed = await post(url, '/api/simulator/event', {
       event_id: 'state-delayed-red',
@@ -351,7 +355,7 @@ test('pending events cannot activate campaigns; confirmation, claims, duplicates
 });
 
 test('claim window expiry and suspended match campaign pause are separate states', async () => {
-  const app = createFlashServer({ claimWindowSeconds: 0.04 });
+  const app = createFlashServer({ demoMode: true, claimWindowSeconds: 0.04 });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -379,7 +383,7 @@ test('claim window expiry and suspended match campaign pause are separate states
 });
 
 test('catalogue claims enforce minimum basket and release tracked inventory without underflow', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -394,22 +398,24 @@ test('catalogue claims enforce minimum basket and release tracked inventory with
     assert.equal(campaign.original_price_minor, 8000);
     assert.equal(campaign.final_price_minor, 4800);
     assert.equal(campaign.discount_minor, 3200);
-    const scarf = campaign.eligible_offers.find(offer => offer.offer_id === 'demo-ars-scarf-10');
+    const scarfCampaign = goal.body.deals.find(deal => deal.catalogue_offer_id === 'demo-ars-scarf-10');
+    const scarf = scarfCampaign.eligible_offers[0];
     assert.equal(scarf.remaining_quantity, 8);
 
-    const tooSmall = await post(url, `/api/campaigns/${campaign.campaign_id}/claim`, {
+    await post(url, '/api/fan/team', { user_id: 'local-catalogue-user', team: 'Arsenal' });
+    const tooSmall = await post(url, `/api/campaigns/${scarfCampaign.campaign_id}/claim`, {
       user_id: 'local-catalogue-user', offer_id: scarf.offer_id, basket_subtotal_minor: 2499
     });
     assert.equal(tooSmall.status, 409);
     assert.match(tooSmall.body.error, /minimum basket/i);
 
-    const claimed = await post(url, `/api/campaigns/${campaign.campaign_id}/claim`, {
+    const claimed = await post(url, `/api/campaigns/${scarfCampaign.campaign_id}/claim`, {
       user_id: 'local-catalogue-user', offer_id: scarf.offer_id, basket_subtotal_minor: 3000
     });
     assert.equal(claimed.status, 200);
     assert.equal(claimed.body.claim.final_price_minor, 2000);
     assert.equal(claimed.body.claim.offer_id, scarf.offer_id);
-    const duplicate = await post(url, `/api/campaigns/${campaign.campaign_id}/claim`, {
+    const duplicate = await post(url, `/api/campaigns/${scarfCampaign.campaign_id}/claim`, {
       user_id: 'local-catalogue-user', offer_id: scarf.offer_id, basket_subtotal_minor: 3000
     });
     assert.equal(duplicate.body.duplicate, true);
@@ -434,7 +440,7 @@ test('catalogue claims enforce minimum basket and release tracked inventory with
 });
 
 test('merchant dashboard previews, creates, edits, transitions, and reports actual local consumption', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   const now = Date.now();
@@ -499,6 +505,7 @@ test('merchant dashboard previews, creates, edits, transitions, and reports actu
     assert.equal((await post(url, `/api/campaigns/${fanCampaign.campaign_id}/impressions`, {
       user_id: 'local-merchant-metrics', offer_id: fanCampaign.catalogue_offer_id
     })).body.duplicate, true);
+    await post(url, '/api/fan/team', { user_id: 'local-merchant-metrics', team: 'Arsenal' });
     const claim = await post(url, `/api/campaigns/${fanCampaign.campaign_id}/claim`, { user_id: 'local-merchant-metrics' });
     assert.equal(claim.status, 200);
     const completed = await post(url, `/api/merchant/claims/${encodeURIComponent(claim.body.claim.claim_id)}/order`, { action: 'complete_order' });
@@ -511,6 +518,7 @@ test('merchant dashboard previews, creates, edits, transitions, and reports actu
     await post(url, `/api/campaigns/${fanCampaign.campaign_id}/impressions`, {
       user_id: 'local-merchant-cancel', offer_id: fanCampaign.catalogue_offer_id
     });
+    await post(url, '/api/fan/team', { user_id: 'local-merchant-cancel', team: 'Arsenal' });
     const cancelledClaim = await post(url, `/api/campaigns/${fanCampaign.campaign_id}/claim`, { user_id: 'local-merchant-cancel' });
     await post(url, `/api/merchant/claims/${encodeURIComponent(cancelledClaim.body.claim.claim_id)}/order`, { action: 'complete_order' });
     const cancelled = await post(url, `/api/merchant/claims/${encodeURIComponent(cancelledClaim.body.claim.claim_id)}/order`, { action: 'cancel_order' });
@@ -547,7 +555,7 @@ test('merchant dashboard previews, creates, edits, transitions, and reports actu
 });
 
 test('merchant decision support exposes safe illustrative fallback and validates local constraints', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -584,7 +592,7 @@ test('merchant decision support exposes safe illustrative fallback and validates
 });
 
 test('local watch parties count real joins, expose eligible progress, support leaving, and reset', async () => {
-  const app = createFlashServer();
+  const app = createFlashServer({ demoMode: true });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${app.server.address().port}`;
   try {

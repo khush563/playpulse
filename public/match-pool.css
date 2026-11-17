@@ -1,0 +1,11 @@
+.match-pool-card { margin: 18px 0; padding: 20px; border: 1px solid #cad8c1; border-radius: 18px; background: linear-gradient(140deg, #f2f7e9, #fffef7); color: #25432d; }
+.match-pool-card .pool-kicker { margin: 0 0 9px; color: #6e8442; font-size: 9px; font-weight: 900; letter-spacing: 1px; }
+.match-pool-card h2 { margin: 0 0 9px; font-size: 21px; letter-spacing: -.7px; }
+.match-pool-card p { font-size: 12px; line-height: 1.6; color: #61715e; }
+.match-pool-card .pool-count { display: block; margin: 13px 0; font-size: 12px; color: #25432d; }
+.match-pool-card .pool-timing { margin: 3px 0; font-size: 11px; }
+.match-pool-card .pool-merchants { padding-top: 11px; border-top: 1px solid #dce4d2; }
+.match-pool-card label { display: grid; gap: 7px; margin: 15px 0; font-size: 11px; font-weight: 800; }
+.match-pool-card select { padding: 12px; border: 1px solid #cbd9c1; border-radius: 10px; color: #294a35; background: white; font: inherit; }
+.match-pool-card button, .match-pool-card a { display: block; box-sizing: border-box; width: 100%; margin: 13px 0; border: 0; border-radius: 11px; padding: 13px; background: #1d4b35; color: white; font-size: 11px; font-weight: 850; text-align: center; text-decoration: none; }
+.match-pool-card small { display: block; margin-top: 13px; color: #7b8773; font-size: 10px; line-height: 1.6; }
